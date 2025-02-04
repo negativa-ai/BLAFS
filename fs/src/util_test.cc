@@ -3,10 +3,19 @@
 
 TEST(ToTargetPath, HandleNormalInput)
 {
-    const char *path = "path";
+    const char *path = "/path";
     const char *target_dir = "/lower";
     const char *expected = "/lower/path";
-    const char *result = to_target_path(path, target_dir);
+    const char *result = to_target_path(path, target_dir).c_str();
+    ASSERT_STREQ(expected, result);
+}
+
+TEST(ToTargetPath, HandleRootDir)
+{
+    const char *path = "/";
+    const char *target_dir = "/lower";
+    const char *expected = "/lower/";
+    const char *result = to_target_path(path, target_dir).c_str();
     ASSERT_STREQ(expected, result);
 }
 

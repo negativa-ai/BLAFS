@@ -2,14 +2,16 @@
 #include <sys/stat.h>
 
 #include <filesystem>
+#include <string>
 
 #include "util.h"
 
-const char *to_target_path(const char *path, const char *target_dir)
+// path must be an absolute path
+std::string to_target_path(const char *path, const char *target_dir)
 {
-    std::filesystem::path lower{target_dir};
-    lower /= path;
-    return lower.c_str();
+    std::filesystem::path target{target_dir};
+    target += path;
+    return target.string();
 }
 
 bool path_exists(const char *path)
@@ -18,7 +20,7 @@ bool path_exists(const char *path)
     return lstat(path, &stbuf) == 0;
 }
 
-int copy_file(const char *from, const char *to, bool retain_time)
+int copy_file(const char *from, const char *to)
 {
     std::string cmd{"cp -rP \"" + std::string(from) + "\" \"" + std::string(to) + "\""};
     return system(cmd.c_str());

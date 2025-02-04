@@ -26,7 +26,7 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 # Create the executable from our source file.
-add_executable(debloated_fs src/main.cc src/debloated_fs.cc)
+add_executable(debloated_fs src/main.cc src/debloated_fs.cc src/util.cc)
 target_include_directories(debloated_fs PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
 # Add the FUSE3 include directory to the target

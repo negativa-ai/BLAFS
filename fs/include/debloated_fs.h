@@ -17,7 +17,7 @@ struct Options
     const char *optimize;  // reserved for future optimization
 };
 
-static struct Options BAFFS_FUSE_OPTS{"", "", ""}; // global variable to store options
+static struct Options BAFFS_FUSE_OPTS{NULL, NULL, NULL}; // global variable to store options
 
 void fuse_opt_init(struct fuse_args *args); // initialize the global FUSE_OPTS, must be called before mounting
 

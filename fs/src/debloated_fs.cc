@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <stddef.h>
+#include <string.h>
 
 #include <fuse.h>
 #include <spdlog/cfg/env.h>
@@ -34,11 +35,13 @@ void fuse_opt_init(struct fuse_args *args)
                 BAFFS_FUSE_OPTS.real_dir, BAFFS_FUSE_OPTS.optimize);
 }
 
-static const char *redirect(const char *original_path)
+std::string redirect(const char *original_path)
 {
   spdlog::debug("original path: {0}", original_path);
-  const char *lower_path = to_target_path(original_path, BAFFS_FUSE_OPTS.lower_dir);
-  const char *real_path = to_target_path(original_path, BAFFS_FUSE_OPTS.real_dir);
+  std::string lower_path_string = to_target_path(original_path, BAFFS_FUSE_OPTS.lower_dir);
+  const char *lower_path = lower_path_string.c_str();
+  std::string real_path_string = to_target_path(original_path, BAFFS_FUSE_OPTS.real_dir);
+  const char *real_path = real_path_string.c_str();
 
   if (path_exists(real_path))
   {
@@ -92,9 +95,50 @@ static const char *redirect(const char *original_path)
   }
 }
 
+void *baffs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
+{
+  cfg->use_ino = 1;
+
+  /* Pick up changes from lower filesystem right away. This is
+     also necessary for better hardlink support. When the kernel
+     calls the unlink() handler, it does not know the inode of
+     the to-be-removed entry and can therefore not invalidate
+     the cache of the associated inode - resulting in an
+     incorrect st_nlink value being reported for any remaining
+     hardlinks to this inode. */
+  cfg->entry_timeout = 0;
+  cfg->attr_timeout = 0;
+  cfg->negative_timeout = 0;
+
+  return NULL;
+}
+
+int baffs_getxattr(const char *_path, const char *name, char *value, size_t size)
+{
+  spdlog::debug("getxattr callback, not supported");
+  return -ENOTSUP;
+}
+
+int baffs_listxattr(const char *_path, char *list, size_t size)
+{
+  spdlog::debug("listxattr callback, not supported");
+  return -ENOTSUP;
+}
+
 int baffs_getattr(const char *_path, struct stat *stbuf,
                   struct fuse_file_info *fi)
 {
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
 
-  return 0;
+  if (fi)
+  {
+    spdlog::debug("retrieve from fi");
+    return fstat(fi->fh, stbuf);
+  }
+  else
+  {
+    spdlog::debug("retrieve from path: {0}", redirected_path);
+    return lstat(redirected_path, stbuf);
+  }
 }

@@ -15,7 +15,16 @@ int main(int argc, char **argv)
     fuse_opt_init(&args);
 
     const struct fuse_operations baffs_oper = {
-        .getattr = baffs_getattr};
+        .getattr = baffs_getattr,
+        .readlink = baffs_readlink,
+        .getxattr = baffs_getxattr,
+        .listxattr = baffs_listxattr,
+        .opendir = baffs_opendir,
+        .readdir = baffs_readdir,
+        .init = baffs_init,
+        .access = baffs_access,
+
+    };
 
     int ret = fuse_main(args.argc, args.argv, &baffs_oper, nullptr);
     fuse_opt_free_args(&args);

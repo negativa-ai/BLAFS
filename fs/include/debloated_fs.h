@@ -3,6 +3,8 @@
 
 #define FUSE_USE_VERSION 36
 
+#include <dirent.h>
+
 #include <fuse.h>
 
 #ifdef linux
@@ -18,6 +20,13 @@ struct Options
 };
 
 static struct Options BAFFS_FUSE_OPTS{NULL, NULL, NULL}; // global variable to store options
+
+struct BaffsDirp
+{
+    DIR *dp;
+    struct dirent *entry;
+    off_t offset;
+};
 
 void fuse_opt_init(struct fuse_args *args); // initialize the global FUSE_OPTS, must be called before mounting
 

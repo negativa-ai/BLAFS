@@ -1,21 +1,29 @@
 #include <gtest/gtest.h>
 #include "util.h"
 
-TEST(ToTargetPath, HandleNormalInput)
+TEST(ConcatPath, HandleNormalInput)
 {
-    const char *path = "/path";
-    const char *target_dir = "/lower";
+    const char *path1 = "/lower";
+    const char *path2 = "/path";
     const char *expected = "/lower/path";
-    const char *result = to_target_path(path, target_dir).c_str();
+    const char *result = concat_path(path1, path2).c_str();
     ASSERT_STREQ(expected, result);
 }
 
-TEST(ToTargetPath, HandleRootDir)
+TEST(ConcatPath, HandleRootDir)
 {
-    const char *path = "/";
-    const char *target_dir = "/lower";
+    const char *path1 = "/lower";
+    const char *path2 = "/";
     const char *expected = "/lower/";
-    const char *result = to_target_path(path, target_dir).c_str();
+    const char *result = concat_path(path1, path2).c_str();
+    ASSERT_STREQ(expected, result);
+}
+
+TEST(ConcatPath, HandleMultiPaths)
+{
+    const char *paths[3] = {"/lower", "/", "path"};
+    const char *expected = "/lower/path";
+    const char *result = concat_path(paths, 3).c_str();
     ASSERT_STREQ(expected, result);
 }
 

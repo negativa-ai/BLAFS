@@ -1,8 +1,8 @@
 #define FUSE_USE_VERSION 36
 
-#include <filesystem>
 #include <stddef.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <fuse.h>
 #include <spdlog/cfg/env.h>
@@ -38,9 +38,9 @@ void fuse_opt_init(struct fuse_args *args)
 std::string redirect(const char *original_path)
 {
   spdlog::debug("original path: {0}", original_path);
-  std::string lower_path_string = to_target_path(original_path, BAFFS_FUSE_OPTS.lower_dir);
+  std::string lower_path_string = concat_path(BAFFS_FUSE_OPTS.lower_dir, original_path);
   const char *lower_path = lower_path_string.c_str();
-  std::string real_path_string = to_target_path(original_path, BAFFS_FUSE_OPTS.real_dir);
+  std::string real_path_string = concat_path(BAFFS_FUSE_OPTS.real_dir, original_path);
   const char *real_path = real_path_string.c_str();
 
   if (path_exists(real_path))
@@ -141,4 +141,129 @@ int baffs_getattr(const char *_path, struct stat *stbuf,
     spdlog::debug("retrieve from path: {0}", redirected_path);
     return lstat(redirected_path, stbuf);
   }
+}
+
+int baffs_access(const char *_path, int mask)
+{
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  return access(redirected_path, mask);
+}
+
+int baffs_readlink(const char *_path, char *buf, size_t size)
+{
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int res = readlink(redirected_path, buf, size);
+  buf[res] = '\0';
+  return res;
+}
+
+int baffs_opendir(const char *_path, struct fuse_file_info *fi)
+{
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+  int res;
+  struct BaffsDirp *d = static_cast<BaffsDirp *>(malloc(sizeof(struct BaffsDirp)));
+  if (d == NULL)
+    return -ENOMEM;
+
+  d->dp = opendir(redirected_path);
+  if (d->dp == NULL)
+  {
+    res = -errno;
+    free(d);
+    return res;
+  }
+  d->offset = 0;
+  d->entry = NULL;
+
+  fi->fh = (unsigned long)d;
+  return 0;
+}
+
+int baffs_readdir(const char *_path, void *buf, fuse_fill_dir_t filler,
+                  off_t offset, struct fuse_file_info *fi,
+                  enum fuse_readdir_flags flags)
+{
+  // todo: first read real dir, then read lower dir
+  // the content of lower dir should not cover real dir
+  spdlog::debug("readdir callback");
+  DIR *dp;
+  struct dirent *de;
+
+  (void)offset;
+  (void)fi;
+  (void)flags;
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+  dp = opendir(redirected_path);
+  if (dp == NULL)
+    return -errno;
+
+  while ((de = readdir(dp)) != NULL)
+  {
+
+    struct stat st;
+    memset(&st, 0, sizeof(st));
+    st.st_ino = de->d_ino;
+    st.st_mode = de->d_type << 12;
+
+    const char *lower_paths[3] = {BAFFS_FUSE_OPTS.lower_dir, _path, de->d_name};
+    std::string lower_path_string = concat_path(lower_paths, 3);
+    const char *lower_path = lower_path_string.c_str();
+    const char *real_paths[3] = {BAFFS_FUSE_OPTS.real_dir, _path, de->d_name};
+    std::string real_path_string = concat_path(real_paths, 3);
+    const char *real_path = real_path_string.c_str();
+
+    struct stat file_stat;
+    int rc{lstat(lower_path, &file_stat)};
+    if (rc == 0 && !path_exists(real_path))
+    {
+      switch (de->d_type)
+      {
+      case DT_DIR:
+      {
+        spdlog::debug("create dir when readdir: {}", real_path);
+        if (mkdir(real_path, file_stat.st_mode) != 0)
+        {
+          spdlog::error("mkdir fail at readdir: {}", real_path);
+        }
+        if (chmod(real_path, file_stat.st_mode) != 0)
+        {
+          spdlog::error("chomod fail at readdir: {}", real_path);
+        }
+        break;
+      }
+      case DT_LNK:
+      {
+        spdlog::debug("copy link when readdir: {0}->{1}", lower_path, real_path);
+        copy_file(lower_path, real_path);
+        break;
+      }
+      case DT_REG:
+      {
+        spdlog::debug("create file when readdir: {}", real_path);
+        // create an empty file with the same name and mode
+        int emp = open(real_path, O_RDWR | O_CREAT, file_stat.st_mode);
+        close(emp);
+        if (chmod(real_path, file_stat.st_mode) != 0)
+        {
+          spdlog::error("chomod fail at readdir: {}", real_path);
+        }
+        break;
+      }
+      default:
+        spdlog::error("Don't support other files");
+        break;
+      }
+    }
+
+    if (filler(buf, de->d_name, &st, 0, FUSE_FILL_DIR_PLUS))
+      break;
+  }
+  closedir(dp);
+  return 0;
 }

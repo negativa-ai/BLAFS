@@ -4,7 +4,8 @@
 
 #include <string>
 
-std::string to_target_path(const char *path, const char *target_dir);
+std::string concat_path(const char *path1, const char *path2);
+std::string concat_path(const char **paths, uint32_t size);
 bool path_exists(const char *path);
 int copy_file(const char *from, const char *to);
 

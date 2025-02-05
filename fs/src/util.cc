@@ -6,12 +6,29 @@
 
 #include "util.h"
 
-// path must be an absolute path
-std::string to_target_path(const char *path, const char *target_dir)
+// concat path1 and path2 with a '/' in between
+std::string concat_path(const char *path1, const char *path2)
 {
-    std::filesystem::path target{target_dir};
-    target += path;
-    return target.string();
+    std::filesystem::path target{path1};
+    target += "/";
+    target += path2;
+    return target.lexically_normal().string();
+}
+
+std::string concat_path(const char **paths, uint32_t size)
+{
+    if (size == 0)
+    {
+        return "";
+    }
+
+    std::filesystem::path target{paths[0]};
+    for (uint32_t i = 1; i < size; i++)
+    {
+        target += "/";
+        target += paths[i];
+    }
+    return target.lexically_normal().string();
 }
 
 bool path_exists(const char *path)

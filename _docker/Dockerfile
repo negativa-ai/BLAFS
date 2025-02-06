@@ -5,9 +5,9 @@ ENV TZ=Europe/Stockholm
 RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 RUN echo "$TZ" > /etc/timezone
 
-
 RUN apt-get update
-RUN apt install -y git curl wget vim
+RUN apt install -y git curl wget vim cmake pkg-config
+RUN apt-get install build-essential -y
 
 # install docker
 RUN apt-get install ca-certificates curl &&  install -m 0755 -d /etc/apt/keyrings \
@@ -22,5 +22,14 @@ RUN apt-get update && apt-get install docker-ce docker-ce-cli containerd.io dock
 # install on-my-zsh
 RUN apt-get install zsh -y
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+RUN wget https://go.dev/dl/go1.23.6.linux-amd64.tar.gz
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.6.linux-amd64.tar.gz && rm go1.23.6.linux-amd64.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
+
+# install libfuse
+RUN apt-get install libfuse3-dev -y
+
+WORKDIR /home/ubuntu/repos/BAFFS
 
 ENTRYPOINT ["dockerd"]

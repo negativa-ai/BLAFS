@@ -1,11 +1,44 @@
 package image
 
 import (
+	"context"
 	"testing"
 
+	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLayerGetLayerSize(t *testing.T) {
-	assert.Equal(t, 1, 1)
+	layer := NewLayer("/var/lib/docker/overlay2/c786349027930120f67579f2bd2ecff92178e702bf8676219022320bfc223f1f/")
+
+	size := layer.GetLayerSize()
+
+	assert.Greater(t, size, int64(100))
+}
+
+func TestExtractLayerName(t *testing.T) {
+	ctx := context.Background()
+	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	imgInfo, _, _ := cli.ImageInspectWithRaw(ctx, "hello-world")
+
+	layerNames := extractLayerNames(imgInfo.GraphDriver)
+
+	assert.Equal(t, len(layerNames), 1)
+}
+
+func TestExtractLayers(t *testing.T) {
+	ctx := context.Background()
+	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	imgInfo, _, _ := cli.ImageInspectWithRaw(ctx, "hello-world")
+
+	layers := ExtractLayers(&imgInfo, "/var/lib/docker/overlay2/", "/var/lib/docker/")
+
+	assert.Equal(t, len(layers), 1)
+}
+
+func TestNewLayer(t *testing.T) {
+	layer := NewLayer("/var/lib/docker/overlay2/c786349027930120f67579f2bd2ecff92178e702bf8676219022320bfc223f1f/")
+
+	assert.NotEmpty(t, layer.diffPath)
+	assert.NotEmpty(t, layer.linkPath)
 }

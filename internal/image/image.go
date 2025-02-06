@@ -1,9 +1,15 @@
 package image
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/docker/docker/api/types"
+	"github.com/jzh18/baffs/internal/util"
 )
 
 /*
@@ -127,34 +133,33 @@ func (l *Layer) Shadow() Layer {
 	return shadow
 }
 
-// // Construct an original layer from a shadow layer, not create it in the filesystem
-// func (l *Layer) Original() Layer {
-// 	layerName := l.layer_name[len("shadow_"):]
-// 	parentPath := l.absolute_layer_path[:len(l.absolute_layer_path)-len(l.layer_name)]
-// 	orinal := parseOriginalLayer(filepath.Join(parentPath, layerName))
-// 	orinal.layer_name = layerName
-// 	orinal.absoulte_meta_path = l.absoulte_meta_path
-// 	orinal.absolute_cacheid_path = l.absolute_cacheid_path
-// 	orinal.absoulte_size_path = l.absoulte_size_path
+// Construct an original layer from a shadow layer, not create it in the filesystem
+func (l *Layer) Original() Layer {
+	layerName := l.layerName[len("shadow_"):]
+	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
+	original := NewLayer(filepath.Join(parentPath, layerName))
+	original.layerName = layerName
+	original.metaPath = l.metaPath
+	original.cacheidPath = l.cacheidPath
+	original.sizePath = l.sizePath
 
-// 	orinal.absolute_l_link_path = filepath.Join(l.absolute_l_link_path[:len(l.absolute_l_link_path)-len(l.link_content)], orinal.link_content)
-// 	return orinal
-// }
+	original.lLinkPath = filepath.Join(l.lLinkPath[:len(l.lLinkPath)-len(l.linkContent)], original.linkContent)
+	return *original
+}
 
-// func (l *Layer) Restore() {
-// 	if !strings.Contains(l.layer_name, "shadow") {
-// 		panic("Only shadow layers can be restored")
-// 	}
-// 	original := l.Original()
-// 	bakCacheIdData, err := ioutil.ReadFile(original.absolute_cacheid_path + ".bak")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	original.cacheid = string(bakCacheIdData)
-// 	if err = os.WriteFile(original.absolute_cacheid_path, bakCacheIdData, 0600); err != nil {
-// 		panic(err)
-// 	}
-// }
+func (l *Layer) Restore() {
+	if !strings.Contains(l.layerName, "shadow") {
+		panic("Only shadow layers can be restored")
+	}
+	original := l.Original()
+	bakCacheIdData, err := os.ReadFile(original.cacheidPath + ".bak")
+	if err != nil {
+		panic(err)
+	}
+	if err = os.WriteFile(original.cacheidPath, bakCacheIdData, 0600); err != nil {
+		panic(err)
+	}
+}
 
 // // Construct a cache layer from an original/shadow layer
 // func (l *Layer) Cache() Layer {
@@ -257,3 +262,131 @@ func (l *Layer) Shadow() Layer {
 // func (l *Layer) TarDiff(destFile string) {
 // 	TarFiles(l.absolute_diff_path, destFile)
 // }
+
+func NewLayer(layerPath string) *Layer {
+	var layer Layer
+	layer.layerPath = layerPath
+	absDiffPath := filepath.Join(layerPath, "diff")
+	if !util.PathExist(absDiffPath) {
+		panic("Diff dir not exist: " + absDiffPath)
+	}
+	layer.diffPath = absDiffPath
+
+	absLinkPath := filepath.Join(layerPath, "link")
+	if !util.PathExist(absLinkPath) {
+		panic("Link file not exist: " + absLinkPath)
+	}
+	layer.linkPath = absLinkPath
+
+	linkContent, err := os.ReadFile(absLinkPath)
+	if err != nil {
+		panic(err)
+	}
+	layer.linkContent = string(linkContent)
+
+	absLowerPath := filepath.Join(layerPath, "lower")
+	if !util.PathExist(absLowerPath) {
+		layer.lowerPath = ""
+		layer.lowerContent = ""
+	} else {
+		layer.lowerPath = absLowerPath
+		lowerData, err := os.ReadFile(absLowerPath)
+		if err != nil {
+			panic(err)
+		}
+		layer.lowerContent = string(lowerData)
+	}
+	absRealPath := filepath.Join(layerPath, "real")
+	if !util.PathExist(absRealPath) {
+		layer.realPath = ""
+	} else {
+		layer.realPath = absRealPath
+	}
+	return &layer
+}
+
+// Extract layer name from graph driver, from top to bottom
+func extractLayerNames(graphDriver types.GraphDriverData) []string {
+	var allLayers []string
+	upper := graphDriver.Data["UpperDir"]
+	allLayers = append(allLayers, upper)
+	if lower, ok := graphDriver.Data["LowerDir"]; ok {
+		allLowers := strings.Split(lower, ":")
+		allLayers = append(allLayers, allLowers...)
+	}
+
+	var layerNames []string
+	for _, layer := range allLayers {
+		tmp := strings.Split(layer, "/")
+		layerName := tmp[len(tmp)-2]
+		layerNames = append(layerNames, layerName)
+	}
+	return layerNames
+}
+
+// https://www.baeldung.com/linux/docker-image-storage-host
+func generateChainId(preChainId string, diffId string) string {
+	str := preChainId + " " + diffId
+	chainId := fmt.Sprintf("%x", sha256.Sum256([]byte(str)))
+	return chainId
+}
+
+// extract layers from image inspect, from top to bottom
+func ExtractLayers(imgInfo *types.ImageInspect, overlayPath string, dockerRootDir string) []Layer {
+	layerNames := extractLayerNames(imgInfo.GraphDriver)
+	// there should only return image inspect dirs
+	// after modified, frist test cold run, then warm run
+	allOriginalLayers := []Layer{}
+	for _, p := range layerNames {
+		l := NewLayer(filepath.Join(overlayPath, p))
+		l.layerName = p
+		l.linkPath = filepath.Join(overlayPath, "l", l.linkContent)
+		allOriginalLayers = append(allOriginalLayers, *l)
+	}
+
+	rootfsLayers := imgInfo.RootFS.Layers
+	chainId := rootfsLayers[0]
+
+	// generate layer meta info for each layer
+	count := 1
+	for {
+		dirName := strings.Split(chainId, ":")[1]
+		// read layer size
+		layerDir := filepath.Join(dockerRootDir, "image/overlay2/layerdb/sha256", dirName)
+		cacheIdDir := filepath.Join(layerDir, "cache-id")
+		cacheId, err := os.ReadFile(cacheIdDir)
+		if err != nil {
+			panic(err)
+		}
+		cacheIdStr := string(cacheId)
+		expectedAbsDir := filepath.Join(overlayPath, cacheIdStr)
+
+		// find corresponsding original layer
+		i := 0
+		for ; i < len(allOriginalLayers); i++ {
+			if allOriginalLayers[i].layerPath == expectedAbsDir {
+				break
+			}
+		}
+		allOriginalLayers[i].metaPath = layerDir
+		allOriginalLayers[i].cacheidPath = cacheIdDir
+		allOriginalLayers[i].cacheid = cacheIdStr
+		allOriginalLayers[i].sizePath = filepath.Join(layerDir, "size")
+		if size, err := os.ReadFile(allOriginalLayers[i].sizePath); err != nil {
+			panic(err)
+		} else {
+			allOriginalLayers[i].size = string(size)
+		}
+
+		if count >= len(rootfsLayers) {
+			break
+		}
+		// generate new chain_id
+		diffId := rootfsLayers[count]
+		chainId = generateChainId(chainId, diffId)
+		chainId = "sha256:" + chainId
+		count++
+	}
+
+	return allOriginalLayers
+}

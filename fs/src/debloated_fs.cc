@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <fuse.h>
@@ -128,39 +129,59 @@ int baffs_listxattr(const char *_path, char *list, size_t size)
 int baffs_getattr(const char *_path, struct stat *stbuf,
                   struct fuse_file_info *fi)
 {
+  spdlog::debug("getattr callback");
   std::string redirected_path_string = redirect(_path);
   const char *redirected_path = redirected_path_string.c_str();
-
+  int rc;
   if (fi)
   {
     spdlog::debug("retrieve from fi");
-    return fstat(fi->fh, stbuf);
+    if (rc = fstat(fi->fh, stbuf) == -1)
+    {
+      return -errno;
+    }
   }
   else
   {
     spdlog::debug("retrieve from path: {0}", redirected_path);
-    return lstat(redirected_path, stbuf);
+    if (rc = lstat(redirected_path, stbuf) == -1)
+    {
+      return -errno;
+    }
   }
+  return rc;
 }
 
 int baffs_access(const char *_path, int mask)
 {
+  spdlog::debug("access callback");
   std::string redirected_path_string = redirect(_path);
   const char *redirected_path = redirected_path_string.c_str();
-  return access(redirected_path, mask);
+  int rc;
+  if (rc = access(redirected_path, mask) == -1)
+  {
+    return -errno;
+  }
+  return rc;
 }
 
 int baffs_readlink(const char *_path, char *buf, size_t size)
 {
+  spdlog::debug("readlink callback");
   std::string redirected_path_string = redirect(_path);
   const char *redirected_path = redirected_path_string.c_str();
   int res = readlink(redirected_path, buf, size);
+  if (res == -1)
+  {
+    return -errno;
+  }
   buf[res] = '\0';
   return res;
 }
 
 int baffs_opendir(const char *_path, struct fuse_file_info *fi)
 {
+  spdlog::debug("opendir callback");
   std::string redirected_path_string = redirect(_path);
   const char *redirected_path = redirected_path_string.c_str();
 
@@ -266,4 +287,382 @@ int baffs_readdir(const char *_path, void *buf, fuse_fill_dir_t filler,
   }
   closedir(dp);
   return 0;
+}
+
+int baffs_releasedir(const char *_path, struct fuse_file_info *fi)
+{
+  spdlog::debug("releasedir callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  struct BaffsDirp *d = (struct BaffsDirp *)(uintptr_t)fi->fh;
+  int res = closedir(d->dp);
+  free(d);
+  return res;
+}
+
+int baffs_mknod(const char *_path, mode_t mode, dev_t rdev)
+{
+  spdlog::debug("mknod callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+  int rc;
+  if (S_ISFIFO(mode))
+  {
+    if ((rc = mkfifo(redirected_path, mode)) == -1)
+    {
+      return -errno;
+    }
+  }
+  else
+  {
+    if ((rc = mknod(redirected_path, mode, rdev)) == -1)
+    {
+      return -errno;
+    }
+  }
+
+  return rc;
+}
+
+int baffs_mkdir(const char *_path, mode_t mode)
+{
+  spdlog::debug("mkdir callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((rc = mkdir(redirected_path, mode)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_unlink(const char *_path)
+{
+  spdlog::debug("unlink callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((rc = unlink(redirected_path)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_rmdir(const char *_path)
+{
+  spdlog::debug("rmdir callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((rc = rmdir(redirected_path)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_symlink(const char *_from, const char *_to)
+{
+  spdlog::debug("symlink callback");
+  std::string redirected_from_path_string = redirect(_from);
+  const char *redirected_from_path = redirected_from_path_string.c_str();
+  std::string redirected_to_path_string = redirect(_to);
+  const char *redirected_to_path = redirected_to_path_string.c_str();
+  int rc;
+  if ((rc = symlink(redirected_from_path, redirected_to_path)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_rename(const char *_from, const char *_to, unsigned int flags)
+{
+  spdlog::debug("rename callback");
+  std::string redirected_from_path_string = redirect(_from);
+  const char *redirected_from_path = redirected_from_path_string.c_str();
+  std::string redirected_to_path_string = redirect(_to);
+  const char *redirected_to_path = redirected_to_path_string.c_str();
+
+  if (flags)
+    return -EINVAL;
+  int rc;
+  if ((rc = rename(redirected_from_path, redirected_to_path)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_link(const char *_from, const char *_to)
+{
+  spdlog::debug("link callback");
+  std::string redirected_from_path_string = redirect(_from);
+  const char *redirected_from_path = redirected_from_path_string.c_str();
+  std::string redirected_to_path_string = redirect(_to);
+  const char *redirected_to_path = redirected_to_path_string.c_str();
+
+  int rc;
+  if ((rc = link(redirected_from_path, redirected_to_path)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_chmod(const char *_path, mode_t mode, struct fuse_file_info *fi)
+{
+  spdlog::debug("chmod callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if (fi)
+  {
+    if ((rc = fchmod(fi->fh, mode)) == -1)
+    {
+      return -errno;
+    }
+  }
+  else
+  {
+    if ((rc = chmod(redirected_path, mode)) == -1)
+    {
+      return -errno;
+    }
+  }
+  return rc;
+}
+
+int baffs_chown(const char *_path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
+{
+  spdlog::debug("chown callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if (fi)
+  {
+    if ((rc = fchown(fi->fh, uid, gid)) == -1)
+    {
+      return -errno;
+    }
+  }
+  else
+  {
+    if ((rc = lchown(redirected_path, uid, gid)) == -1)
+    {
+      return -errno;
+    }
+  }
+  return rc;
+}
+
+int baffs_truncate(const char *_path, off_t size, struct fuse_file_info *fi)
+{
+  spdlog::debug("truncate callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+  int rc;
+  if (fi)
+  {
+    if ((rc = ftruncate(fi->fh, size)) == -1)
+    {
+      return -errno;
+    }
+  }
+  else
+  {
+    if ((rc = truncate(redirected_path, size)) == -1)
+    {
+      return -errno;
+    }
+  }
+  return rc;
+}
+
+int baffs_create(const char *_path, mode_t mode, struct fuse_file_info *fi)
+{
+  spdlog::debug("create callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int res;
+  res = open(redirected_path, fi->flags, mode);
+  if (res == -1)
+    return -errno;
+
+  fi->fh = res;
+  return 0;
+}
+
+int baffs_open(const char *_path, struct fuse_file_info *fi)
+{
+  spdlog::debug("open callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int res;
+
+  res = open(redirected_path, fi->flags);
+  if (res == -1)
+    return -errno;
+
+  fi->fh = res;
+  return 0;
+}
+
+int baffs_read(const char *_path, char *buf, size_t size, off_t offset,
+               struct fuse_file_info *fi)
+{
+  spdlog::debug("read callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int fd;
+  int res;
+
+  if (fi == NULL)
+    fd = open(redirected_path, O_RDONLY);
+  else
+    fd = fi->fh;
+
+  if (fd == -1)
+    return -errno;
+
+  res = pread(fd, buf, size, offset);
+
+  if (fi == NULL)
+    close(fd);
+  return res;
+}
+
+int baffs_write(const char *_path, const char *buf, size_t size,
+                off_t offset, struct fuse_file_info *fi)
+{
+  spdlog::debug("write callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int fd;
+  int res;
+
+  (void)fi;
+  if (fi == NULL)
+    fd = open(redirected_path, O_WRONLY);
+  else
+    fd = fi->fh;
+
+  if (fd == -1)
+    return -errno;
+
+  res = pwrite(fd, buf, size, offset);
+
+  if (fi == NULL)
+    close(fd);
+  return res;
+}
+
+int baffs_statfs(const char *_path, struct statvfs *stbuf)
+{
+  spdlog::debug("statfs callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((statvfs(redirected_path, stbuf)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_release(const char *_path, struct fuse_file_info *fi)
+{
+  spdlog::debug("release callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((rc = close(fi->fh)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+
+int baffs_fsync(const char *_path, int isdatasync, struct fuse_file_info *fi)
+{
+  spdlog::debug("fysnc callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+#ifndef HAVE_FDATASYNC
+  (void)isdatasync;
+#else
+  if (isdatasync)
+    res = fdatasync(fi->fh);
+  else
+#endif
+  int rc;
+  if ((rc = fsync(fi->fh)) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+int baffs_flush(const char *_path, struct fuse_file_info *fi)
+{
+  spdlog::debug("flush callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int rc;
+  if ((rc = close(dup(fi->fh))) == -1)
+  {
+    return -errno;
+  }
+  return rc;
+}
+off_t baffs_lseek(const char *_path, off_t off, int whence, struct fuse_file_info *fi)
+{
+  spdlog::debug("seek callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+  int fd;
+  off_t res;
+
+  if (fi == NULL)
+    fd = open(redirected_path, O_RDONLY);
+  else
+    fd = fi->fh;
+
+  if (fd == -1)
+    return -errno;
+
+  res = lseek(fd, off, whence);
+  if (res == -1)
+    res = -errno;
+
+  if (fi == NULL)
+    close(fd);
+  return res;
+}
+
+int baffs_ioctl(const char *_path, unsigned int cmd, void *arg,
+                struct fuse_file_info *fi, unsigned int flags,
+                void *data)
+{
+  spdlog::debug("ioctl callback");
+  std::string redirected_path_string = redirect(_path);
+  const char *redirected_path = redirected_path_string.c_str();
+
+  struct stat file_stat;
+  int rc;
+  if ((rc = lstat(redirected_path, &file_stat)) == -1)
+  {
+    return -errno;
+  }
+
+  if (S_ISREG(file_stat.st_mode))
+  {
+    int fd = open(redirected_path, O_RDWR);
+    return ioctl(fd, cmd, data);
+  }
+  return -EINVAL;
 }

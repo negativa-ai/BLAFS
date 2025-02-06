@@ -2,6 +2,7 @@ package image
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -33,7 +34,6 @@ type Layer struct {
 	diffPath     string
 	linkPath     string
 	lowerPath    string
-	realPath     string
 	linkContent  string
 	lowerContent string
 	lLinkPath    string
@@ -46,48 +46,8 @@ type Layer struct {
 	size        string
 }
 
-// SetLowers replace existing lowers to new lowers
-func (l *Layer) SetLowers(newLowers string) {
-	l.lowerContent = newLowers
-}
-
-func (l *Layer) SetLayerSize(size string) {
-	l.size = size
-}
-
-func (l *Layer) SetCacheId(cacheId string) {
-	l.cacheid = cacheId
-}
-
 func (l *Layer) GetLayerSize() int64 {
-	var size int64
-	var path string
-
-	// the files exist either absolute_real_path(shadow layer) or absolute_diff_path(original layer)
-	if l.realPath != "" {
-		path = l.realPath
-	} else {
-		path = l.diffPath
-	}
-	if err := filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-		if !d.IsDir() {
-			if info, err := d.Info(); err != nil {
-				panic(err)
-			} else {
-				size += info.Size()
-			}
-		}
-		return nil
-	}); err != nil {
-		panic(err)
-	}
-	return size
-}
-
-func (l *Layer) DumpLayerSize(size string) {
-	if err := os.WriteFile(l.sizePath, []byte(size), 0600); err != nil {
-		panic(err)
-	}
+	return util.GetDirSize(l.diffPath)
 }
 
 // Truncate diff layer
@@ -102,23 +62,30 @@ func (l *Layer) TruncateDiff() {
 	}
 }
 
+// archive files under diff directory
+// func (l *Layer) TarDiff(destFile string) {
+// 	TarFiles(l.absolute_diff_path, destFile)
+// }
+
 // Construct a shadow layer in memory, but not create in the filesystem
-func (l *Layer) Shadow() Layer {
+func (l *Layer) Shadow() ShadowLayer {
 	layerName := "shadow_" + l.layerName
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
-	shadow := Layer{
-		layerPath:    filepath.Join(parentPath, layerName),
-		diffPath:     filepath.Join(parentPath, layerName, "diff"),
-		linkPath:     filepath.Join(parentPath, layerName, "link"),
-		realPath:     filepath.Join(parentPath, layerName, "real"),
-		linkContent:  "shadow_" + l.linkContent,
-		lowerContent: "",
-		layerName:    layerName,
-		metaPath:     l.metaPath,
-		cacheidPath:  l.cacheidPath,
-		sizePath:     l.sizePath,
-		cacheid:      layerName,
-		size:         l.size,
+	shadow := ShadowLayer{
+		Layer: Layer{
+			layerPath:    filepath.Join(parentPath, layerName),
+			diffPath:     filepath.Join(parentPath, layerName, "diff"),
+			linkPath:     filepath.Join(parentPath, layerName, "link"),
+			linkContent:  "shadow_" + l.linkContent,
+			lowerContent: "",
+			layerName:    layerName,
+			metaPath:     l.metaPath,
+			cacheidPath:  l.cacheidPath,
+			sizePath:     l.sizePath,
+			cacheid:      layerName,
+			size:         l.size,
+		},
+		realPath: filepath.Join(parentPath, layerName, "real"),
 	}
 
 	// lower file is optional if it's the bottom layer
@@ -133,8 +100,36 @@ func (l *Layer) Shadow() Layer {
 	return shadow
 }
 
+type ShadowLayer struct {
+	Layer
+	realPath string
+}
+
+// SetLowers replace existing lowers to new lowers
+func (l *ShadowLayer) SetLowers(newLowers string) {
+	l.lowerContent = newLowers
+}
+
+func (l *ShadowLayer) SetLayerSize(size string) {
+	l.size = size
+}
+
+func (l *ShadowLayer) SetCacheId(cacheId string) {
+	l.cacheid = cacheId
+}
+
+func (l *ShadowLayer) GetLayerSize() int64 {
+	return util.GetDirSize(l.realPath)
+}
+
+func (l *ShadowLayer) DumpLayerSize(size string) {
+	if err := os.WriteFile(l.sizePath, []byte(size), 0600); err != nil {
+		panic(err)
+	}
+}
+
 // Construct an original layer from a shadow layer, not create it in the filesystem
-func (l *Layer) Original() Layer {
+func (l *ShadowLayer) Original() Layer {
 	layerName := l.layerName[len("shadow_"):]
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
 	original := NewLayer(filepath.Join(parentPath, layerName))
@@ -147,10 +142,7 @@ func (l *Layer) Original() Layer {
 	return *original
 }
 
-func (l *Layer) Restore() {
-	if !strings.Contains(l.layerName, "shadow") {
-		panic("Only shadow layers can be restored")
-	}
+func (l *ShadowLayer) Restore() {
 	original := l.Original()
 	bakCacheIdData, err := os.ReadFile(original.cacheidPath + ".bak")
 	if err != nil {
@@ -161,107 +153,83 @@ func (l *Layer) Restore() {
 	}
 }
 
-// // Construct a cache layer from an original/shadow layer
-// func (l *Layer) Cache() Layer {
-// 	layerName := "cache_" + l.layer_name
-// 	parentPath := l.absolute_layer_path[:len(l.absolute_layer_path)-len(l.layer_name)]
-// 	cache := Layer{
-// 		absolute_layer_path: filepath.Join(parentPath, layerName),
-// 		absolute_diff_path:  filepath.Join(parentPath, layerName, "diff"),
-// 		absolute_link_path:  filepath.Join(parentPath, layerName, "link"),
-// 		absolute_real_path:  filepath.Join(parentPath, layerName, "real"),
-// 		link_content:        "link_" + layerName,
-// 		lower_content:       "",
-// 		layer_name:          layerName,
-// 	}
-// 	cache.absolute_l_link_path = filepath.Join(l.absolute_l_link_path[:len(l.absolute_l_link_path)-len(l.link_content)], cache.link_content)
-// 	return cache
+// Create dir and files according to the layer
+// Only shadow layers can call this function
+func (l *ShadowLayer) Dump() {
+	var mode fs.FileMode = 0755
+	// create layer
+	if err := os.Mkdir(l.layerPath, mode); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fmt.Println("Layer diff dir already exists")
+		} else {
+			panic(err)
+		}
+	}
 
-// }
+	// create diff dir
+	if err := os.Mkdir(l.diffPath, mode); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fmt.Println("Layer diff dir already exists")
+		} else {
+			panic(err)
+		}
+	}
+	//create link file
+	linkFile, err := os.Create(l.linkPath)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fmt.Println("Layer link file already exists")
+		} else {
+			panic(err)
+		}
+	}
+	linkFile.WriteString(l.linkContent)
 
-// // Create dir and files according to the layer
-// // Only shadow layers can call this function
-// func (l *Layer) Dump() {
-// 	var mode fs.FileMode = 0755
-// 	// create layer
-// 	if err := os.Mkdir(l.absolute_layer_path, mode); err != nil {
-// 		if errors.Is(err, os.ErrExist) {
-// 			fmt.Println("Layer diff dir already exists")
-// 		} else {
-// 			panic(err)
-// 		}
-// 	}
+	// create lower file, optionally
+	if l.lowerPath != "" {
+		if lower_file, err := os.Create(l.lowerPath); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				fmt.Println("Layer lower file already exists")
+			} else {
+				panic(err)
+			}
+		} else {
+			// set lowers
+			lower_file.WriteString(l.lowerContent)
+		}
+	}
 
-// 	// create diff dir
-// 	if err := os.Mkdir(l.absolute_diff_path, mode); err != nil {
-// 		if errors.Is(err, os.ErrExist) {
-// 			fmt.Println("Layer diff dir already exists")
-// 		} else {
-// 			panic(err)
-// 		}
-// 	}
-// 	//create link file
-// 	link_file, err := os.Create(l.absolute_link_path)
-// 	if err != nil {
-// 		if errors.Is(err, os.ErrExist) {
-// 			fmt.Println("Layer link file already exists")
-// 		} else {
-// 			panic(err)
-// 		}
-// 	}
-// 	link_file.WriteString(l.link_content)
+	// create real dir
+	if l.realPath != "" {
+		if err := os.Mkdir(l.realPath, mode); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				fmt.Println("Layer real dir already exists")
+			} else {
+				panic(err)
+			}
+		}
+	}
 
-// 	// create lower file, optionally
-// 	if l.absolute_lower_path != "" {
-// 		if lower_file, err := os.Create(l.absolute_lower_path); err != nil {
-// 			if errors.Is(err, os.ErrExist) {
-// 				fmt.Println("Layer lower file already exists")
-// 			} else {
-// 				panic(err)
-// 			}
-// 		} else {
-// 			// set lowers
-// 			lower_file.WriteString(l.lower_content)
-// 		}
-// 	}
+	// create l/link_{layer_name}
+	if err := os.Symlink(filepath.Join("../", l.layerName, "diff"), l.lLinkPath); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fmt.Println("l/link file already exists")
+		} else {
+			panic(err)
+		}
+	}
 
-// 	// create real dir
-// 	if l.absolute_real_path != "" {
-// 		if err := os.Mkdir(l.absolute_real_path, mode); err != nil {
-// 			if errors.Is(err, os.ErrExist) {
-// 				fmt.Println("Layer real dir already exists")
-// 			} else {
-// 				panic(err)
-// 			}
-// 		}
-// 	}
-
-// 	// create l/link_{layer_name}
-// 	if err := os.Symlink(filepath.Join("../", l.layer_name, "diff"), l.absolute_l_link_path); err != nil {
-// 		if errors.Is(err, os.ErrExist) {
-// 			fmt.Println("l/link file already exists")
-// 		} else {
-// 			panic(err)
-// 		}
-// 	}
-
-// 	if l.absolute_cacheid_path != "" {
-// 		// set cache-id
-// 		// back up the original cache-id firstly
-// 		if !file_exist(l.absolute_cacheid_path + ".bak") {
-// 			copy(l.absolute_cacheid_path, l.absolute_cacheid_path+".bak")
-// 		}
-// 		if err := os.WriteFile(l.absolute_cacheid_path, []byte(l.cacheid), 0600); err != nil {
-// 			panic(err)
-// 		}
-
-// 	}
-// }
-
-// // archive files under diff directory
-// func (l *Layer) TarDiff(destFile string) {
-// 	TarFiles(l.absolute_diff_path, destFile)
-// }
+	if l.cacheidPath != "" {
+		// set cache-id
+		// back up the original cache-id firstly
+		if !util.PathExist(l.cacheidPath + ".bak") {
+			util.CopyFile(l.cacheidPath, l.cacheidPath+".bak")
+		}
+		if err := os.WriteFile(l.cacheidPath, []byte(l.cacheid), 0600); err != nil {
+			panic(err)
+		}
+	}
+}
 
 func NewLayer(layerPath string) *Layer {
 	var layer Layer
@@ -295,12 +263,6 @@ func NewLayer(layerPath string) *Layer {
 			panic(err)
 		}
 		layer.lowerContent = string(lowerData)
-	}
-	absRealPath := filepath.Join(layerPath, "real")
-	if !util.PathExist(absRealPath) {
-		layer.realPath = ""
-	} else {
-		layer.realPath = absRealPath
 	}
 	return &layer
 }

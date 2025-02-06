@@ -1,10 +1,8 @@
 package image
 
 import (
-	"context"
 	"testing"
 
-	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,26 +12,6 @@ func TestLayerGetLayerSize(t *testing.T) {
 	size := layer.GetLayerSize()
 
 	assert.Greater(t, size, int64(100))
-}
-
-func TestExtractLayerName(t *testing.T) {
-	ctx := context.Background()
-	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	imgInfo, _, _ := cli.ImageInspectWithRaw(ctx, "hello-world")
-
-	layerNames := extractLayerNames(imgInfo.GraphDriver)
-
-	assert.Equal(t, len(layerNames), 1)
-}
-
-func TestExtractLayers(t *testing.T) {
-	ctx := context.Background()
-	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	imgInfo, _, _ := cli.ImageInspectWithRaw(ctx, "hello-world")
-
-	layers := ExtractLayers(&imgInfo, "/var/lib/docker/overlay2/", "/var/lib/docker/")
-
-	assert.Equal(t, len(layers), 1)
 }
 
 func TestNewLayer(t *testing.T) {

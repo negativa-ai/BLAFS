@@ -1,15 +1,12 @@
 package image
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/jzh18/baffs/internal/util"
 )
 
@@ -48,6 +45,32 @@ type Layer struct {
 
 func (l *Layer) GetLayerSize() int64 {
 	return util.GetDirSize(l.diffPath)
+}
+
+func (l *Layer) GetLayerPath() string {
+	return l.layerPath
+}
+
+func (l *Layer) SetMetaPath(metaPath string) {
+	l.metaPath = metaPath
+}
+
+func (l *Layer) SetCacheIdPath(cacheidPath string) {
+	l.cacheidPath = cacheidPath
+}
+
+func (l *Layer) SetCacheId(cacheId string) {
+	l.cacheid = cacheId
+}
+
+// Set size path, this will also set the size field
+func (l *Layer) SetSizePath(sizePath string) {
+	l.sizePath = sizePath
+	if size, err := os.ReadFile(sizePath); err != nil {
+		panic(err)
+	} else {
+		l.size = string(size)
+	}
 }
 
 // Truncate diff layer
@@ -231,6 +254,7 @@ func (l *ShadowLayer) Dump() {
 	}
 }
 
+// Create a new layer from a layer path, with some very basic fields
 func NewLayer(layerPath string) *Layer {
 	var layer Layer
 	layer.layerPath = layerPath
@@ -264,91 +288,9 @@ func NewLayer(layerPath string) *Layer {
 		}
 		layer.lowerContent = string(lowerData)
 	}
+
+	layer.layerName = filepath.Base(layerPath)
+	layer.linkPath = filepath.Join(filepath.Dir(layerPath), "l", layer.linkContent)
+
 	return &layer
-}
-
-// Extract layer name from graph driver, from top to bottom
-func extractLayerNames(graphDriver types.GraphDriverData) []string {
-	var allLayers []string
-	upper := graphDriver.Data["UpperDir"]
-	allLayers = append(allLayers, upper)
-	if lower, ok := graphDriver.Data["LowerDir"]; ok {
-		allLowers := strings.Split(lower, ":")
-		allLayers = append(allLayers, allLowers...)
-	}
-
-	var layerNames []string
-	for _, layer := range allLayers {
-		tmp := strings.Split(layer, "/")
-		layerName := tmp[len(tmp)-2]
-		layerNames = append(layerNames, layerName)
-	}
-	return layerNames
-}
-
-// https://www.baeldung.com/linux/docker-image-storage-host
-func generateChainId(preChainId string, diffId string) string {
-	str := preChainId + " " + diffId
-	chainId := fmt.Sprintf("%x", sha256.Sum256([]byte(str)))
-	return chainId
-}
-
-// extract layers from image inspect, from top to bottom
-func ExtractLayers(imgInfo *types.ImageInspect, overlayPath string, dockerRootDir string) []Layer {
-	layerNames := extractLayerNames(imgInfo.GraphDriver)
-	// there should only return image inspect dirs
-	// after modified, frist test cold run, then warm run
-	allOriginalLayers := []Layer{}
-	for _, p := range layerNames {
-		l := NewLayer(filepath.Join(overlayPath, p))
-		l.layerName = p
-		l.linkPath = filepath.Join(overlayPath, "l", l.linkContent)
-		allOriginalLayers = append(allOriginalLayers, *l)
-	}
-
-	rootfsLayers := imgInfo.RootFS.Layers
-	chainId := rootfsLayers[0]
-
-	// generate layer meta info for each layer
-	count := 1
-	for {
-		dirName := strings.Split(chainId, ":")[1]
-		// read layer size
-		layerDir := filepath.Join(dockerRootDir, "image/overlay2/layerdb/sha256", dirName)
-		cacheIdDir := filepath.Join(layerDir, "cache-id")
-		cacheId, err := os.ReadFile(cacheIdDir)
-		if err != nil {
-			panic(err)
-		}
-		cacheIdStr := string(cacheId)
-		expectedAbsDir := filepath.Join(overlayPath, cacheIdStr)
-
-		// find corresponsding original layer
-		i := 0
-		for ; i < len(allOriginalLayers); i++ {
-			if allOriginalLayers[i].layerPath == expectedAbsDir {
-				break
-			}
-		}
-		allOriginalLayers[i].metaPath = layerDir
-		allOriginalLayers[i].cacheidPath = cacheIdDir
-		allOriginalLayers[i].cacheid = cacheIdStr
-		allOriginalLayers[i].sizePath = filepath.Join(layerDir, "size")
-		if size, err := os.ReadFile(allOriginalLayers[i].sizePath); err != nil {
-			panic(err)
-		} else {
-			allOriginalLayers[i].size = string(size)
-		}
-
-		if count >= len(rootfsLayers) {
-			break
-		}
-		// generate new chain_id
-		diffId := rootfsLayers[count]
-		chainId = generateChainId(chainId, diffId)
-		chainId = "sha256:" + chainId
-		count++
-	}
-
-	return allOriginalLayers
 }

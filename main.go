@@ -1,7 +1,8 @@
 package main
 
-import(
+import (
 	"fmt"
+
 	"github.com/jzh18/baffs/internal/builder"
 )
 

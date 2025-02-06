@@ -5,3 +5,6 @@ debloated_fs:
 baffs:
 	mkdir -p build
 	cd build && go build github.com/jzh18/baffs
+
+test:
+	go test -v ./...

@@ -1,6 +1,7 @@
 package image
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -24,7 +25,8 @@ Until Dump() is called, the layer will be created in the filesystem.
 	l/
 		link_{layer_name} -> ../{layer_name}/diff
 */
-type Layer struct {
+
+type LayerInfo struct {
 	// files under /var/lib/docker/overlay2
 	// all path should be absolute path
 	layerPath    string
@@ -43,28 +45,36 @@ type Layer struct {
 	size        string
 }
 
-func (l *Layer) GetLayerSize() int64 {
+func (l *LayerInfo) GetLayerSize() int64 {
 	return util.GetDirSize(l.diffPath)
 }
 
-func (l *Layer) GetLayerPath() string {
+func (l *LayerInfo) GetLayerPath() string {
 	return l.layerPath
 }
 
-func (l *Layer) SetMetaPath(metaPath string) {
+func (l *LayerInfo) GetDiffPath() string {
+	return l.diffPath
+}
+
+func (l *LayerInfo) GetlinkContent() string {
+	return l.linkContent
+}
+
+func (l *LayerInfo) SetMetaPath(metaPath string) {
 	l.metaPath = metaPath
 }
 
-func (l *Layer) SetCacheIdPath(cacheidPath string) {
+func (l *LayerInfo) SetCacheIdPath(cacheidPath string) {
 	l.cacheidPath = cacheidPath
 }
 
-func (l *Layer) SetCacheId(cacheId string) {
+func (l *LayerInfo) SetCacheId(cacheId string) {
 	l.cacheid = cacheId
 }
 
 // Set size path, this will also set the size field
-func (l *Layer) SetSizePath(sizePath string) {
+func (l *LayerInfo) SetSizePath(sizePath string) {
 	l.sizePath = sizePath
 	if size, err := os.ReadFile(sizePath); err != nil {
 		panic(err)
@@ -74,7 +84,7 @@ func (l *Layer) SetSizePath(sizePath string) {
 }
 
 // Truncate diff layer
-func (l *Layer) TruncateDiff() {
+func (l *LayerInfo) TruncateDiff() {
 	// this will remove the diff layer too
 	if err := os.RemoveAll(l.diffPath); err != nil {
 		panic(err)
@@ -85,17 +95,16 @@ func (l *Layer) TruncateDiff() {
 	}
 }
 
-// archive files under diff directory
-// func (l *Layer) TarDiff(destFile string) {
-// 	TarFiles(l.absolute_diff_path, destFile)
-// }
+type OriginalLayer struct {
+	LayerInfo
+}
 
 // Construct a shadow layer in memory, but not create in the filesystem
-func (l *Layer) Shadow() ShadowLayer {
+func (l *OriginalLayer) Shadow() ShadowLayer {
 	layerName := "shadow_" + l.layerName
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
 	shadow := ShadowLayer{
-		Layer: Layer{
+		LayerInfo: LayerInfo{
 			layerPath:    filepath.Join(parentPath, layerName),
 			diffPath:     filepath.Join(parentPath, layerName, "diff"),
 			linkPath:     filepath.Join(parentPath, layerName, "link"),
@@ -124,8 +133,12 @@ func (l *Layer) Shadow() ShadowLayer {
 }
 
 type ShadowLayer struct {
-	Layer
+	LayerInfo
 	realPath string
+}
+
+func (l *ShadowLayer) GetRealPath() string {
+	return l.realPath
 }
 
 // SetLowers replace existing lowers to new lowers
@@ -151,18 +164,23 @@ func (l *ShadowLayer) DumpLayerSize(size string) {
 	}
 }
 
+// archive files under diff directory
+func (l *ShadowLayer) TarDiff(destFile string) {
+	util.TarFiles(l.diffPath, destFile)
+}
+
 // Construct an original layer from a shadow layer, not create it in the filesystem
-func (l *ShadowLayer) Original() Layer {
+func (l *ShadowLayer) Original() OriginalLayer {
 	layerName := l.layerName[len("shadow_"):]
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
-	original := NewLayer(filepath.Join(parentPath, layerName))
+	original := NewLayerInfo(filepath.Join(parentPath, layerName))
 	original.layerName = layerName
 	original.metaPath = l.metaPath
 	original.cacheidPath = l.cacheidPath
 	original.sizePath = l.sizePath
 
 	original.lLinkPath = filepath.Join(l.lLinkPath[:len(l.lLinkPath)-len(l.linkContent)], original.linkContent)
-	return *original
+	return OriginalLayer{LayerInfo: *original}
 }
 
 func (l *ShadowLayer) Restore() {
@@ -255,8 +273,8 @@ func (l *ShadowLayer) Dump() {
 }
 
 // Create a new layer from a layer path, with some very basic fields
-func NewLayer(layerPath string) *Layer {
-	var layer Layer
+func NewLayerInfo(layerPath string) *LayerInfo {
+	var layer LayerInfo
 	layer.layerPath = layerPath
 	absDiffPath := filepath.Join(layerPath, "diff")
 	if !util.PathExist(absDiffPath) {
@@ -293,4 +311,144 @@ func NewLayer(layerPath string) *Layer {
 	layer.linkPath = filepath.Join(filepath.Dir(layerPath), "l", layer.linkContent)
 
 	return &layer
+}
+
+type ImgTarLayer struct {
+	versionPath  string
+	layerTarPath string
+	jsonPath     string
+}
+
+func (l *ImgTarLayer) RmLayerTar() {
+	if err := os.Remove(l.layerTarPath); err != nil {
+		panic(err)
+	}
+}
+
+func (l *ImgTarLayer) LayerTarSha256Sum() string {
+	s, err := util.Sha256Sum(l.layerTarPath)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+func (l *ImgTarLayer) GetLayerTarPath() string {
+	return l.layerTarPath
+}
+
+// we only care about Rootfs, so we set other fileds as interface{}
+type ImgJson struct {
+	Created      interface{} `json:"created"`
+	Author       interface{} `json:"author"`
+	Architecture interface{} `json:"architecture"`
+	Os           interface{} `json:"os"`
+	Config       interface{} `json:"config"`
+	Rootfs       struct {
+		DiffIds []string `json:"diff_ids"` // from bottom to top
+		Type    string   `json:"type"`
+	} `json:"rootfs"`
+	History interface{} `json:"history"`
+}
+
+// https://github.com/moby/moby/blob/master/image/spec/v1.2.md
+type ImgTarFs struct {
+	basePath        string
+	layers          []ImgTarLayer // from bottom to top
+	manifestPath    string
+	repoPath        string
+	imgJsonPath     string
+	manifestContent []Manifest
+	imgJsonContent  ImgJson
+}
+
+type Manifest struct {
+	Config   string   `json:"Config"`
+	RepoTags []string `json:"RepoTags"`
+	Layers   []string `json:"Layers"` // 0->n : bottom->top
+}
+
+func (f *ImgTarFs) GetLayers() []ImgTarLayer {
+	return f.layers
+}
+
+func (f *ImgTarFs) DumpImgJson() {
+	data, err := json.Marshal(f.imgJsonContent)
+	if err != nil {
+		panic(err)
+	}
+	err = os.WriteFile(f.imgJsonPath, data, 0755)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (f *ImgTarFs) GetImageJson() ImgJson {
+	return f.imgJsonContent
+}
+
+func (f *ImgTarFs) GetManifest() []Manifest {
+	return f.manifestContent
+}
+
+func (f *ImgTarFs) DumpManifest() {
+	data, err := json.Marshal(f.manifestContent)
+	if err != nil {
+		panic(err)
+	}
+	err = os.WriteFile(f.manifestPath, data, 0755)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (f *ImgTarFs) TarWholeFs(dst string) {
+	util.TarFiles(f.basePath, dst)
+}
+
+func ParseImgTarFs(path string) ImgTarFs {
+	imgTarFs := ImgTarFs{
+		basePath: path,
+	}
+	imgTarFs.manifestPath = filepath.Join(path, "manifest.json")
+	imgTarFs.repoPath = filepath.Join(path, "repositories")
+
+	manifestFile, err := os.Open(imgTarFs.manifestPath)
+	if err != nil {
+		panic(err)
+	}
+	defer manifestFile.Close()
+
+	var mf []Manifest
+	err = json.NewDecoder(manifestFile).Decode(&mf)
+	if err != nil {
+		panic(err)
+	}
+	imgTarFs.manifestContent = mf
+
+	manifestEle := imgTarFs.manifestContent[0]
+
+	imgTarFs.imgJsonPath = filepath.Join(path, manifestEle.Config)
+	imgJsonFile, err := os.Open(imgTarFs.imgJsonPath)
+	if err != nil {
+		panic(err)
+	}
+	defer imgJsonFile.Close()
+
+	var imgJson ImgJson
+	err = json.NewDecoder(imgJsonFile).Decode(&imgJson)
+	if err != nil {
+		panic(err)
+	}
+	imgTarFs.imgJsonContent = imgJson
+
+	for _, layerTar := range manifestEle.Layers {
+		imgTarLayer := ImgTarLayer{}
+		layer := layerTar[0 : len(layerTar)-len("layer.tar")]
+		imgTarLayer.jsonPath = filepath.Join(path, layer, "json")
+		imgTarLayer.layerTarPath = filepath.Join(path, layerTar)
+		imgTarLayer.versionPath = filepath.Join(path, layer, "VERSION")
+		imgTarFs.layers = append(imgTarFs.layers, imgTarLayer)
+	}
+	return imgTarFs
 }

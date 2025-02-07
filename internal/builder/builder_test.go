@@ -23,7 +23,7 @@ func TestExtractLayers(t *testing.T) {
 	cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	imgInfo, _, _ := cli.ImageInspectWithRaw(ctx, "hello-world")
 
-	layers := ExtractLayers(&imgInfo, "/var/lib/docker/overlay2/", "/var/lib/docker/")
+	layers := ExtractLayersInfo(&imgInfo, "/var/lib/docker/overlay2/", "/var/lib/docker/")
 
 	assert.Equal(t, len(layers), 1)
 }

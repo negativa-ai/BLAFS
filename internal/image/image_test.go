@@ -7,16 +7,16 @@ import (
 )
 
 func TestLayerGetLayerSize(t *testing.T) {
-	layer := NewLayer("/var/lib/docker/overlay2/c786349027930120f67579f2bd2ecff92178e702bf8676219022320bfc223f1f/")
+	layerInfo := NewLayerInfo("/var/lib/docker/overlay2/474f8a8095314d6f8a42d484b7342c3f3dd1736f503da0cd929ea019abf45090/")
 
-	size := layer.GetLayerSize()
+	size := layerInfo.GetLayerSize()
 
 	assert.Greater(t, size, int64(100))
 }
 
-func TestNewLayer(t *testing.T) {
-	layer := NewLayer("/var/lib/docker/overlay2/c786349027930120f67579f2bd2ecff92178e702bf8676219022320bfc223f1f/")
+func TestNewLayerInfo(t *testing.T) {
+	layerInfo := NewLayerInfo("/var/lib/docker/overlay2/474f8a8095314d6f8a42d484b7342c3f3dd1736f503da0cd929ea019abf45090/")
 
-	assert.NotEmpty(t, layer.diffPath)
-	assert.NotEmpty(t, layer.linkPath)
+	assert.NotEmpty(t, layerInfo.diffPath)
+	assert.NotEmpty(t, layerInfo.linkPath)
 }

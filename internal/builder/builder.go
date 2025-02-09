@@ -168,7 +168,7 @@ func ShadowImage(imgName string, workDir string, overlayPath string,
 		}
 	} else {
 		for _, l := range layerInfos {
-			shadowLayer := image.ShadowLayer{LayerInfo: l}
+			shadowLayer := image.NewShadowLayer(l)
 			shadowLayers = append(shadowLayers, shadowLayer)
 			originalLayers = append(originalLayers, shadowLayer.Original())
 		}
@@ -216,7 +216,7 @@ func umountAllLayers(graphDriver types.GraphDriverData) {
 
 // Export debloated img.
 // Return if shadowed, shadow layers
-func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) (bool, []image.ShadowLayer) {
+func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) (bool, string) {
 	imgInfo, _, err := cli.ImageInspectWithRaw(*ctx, imgName)
 	if err != nil {
 		panic(err)
@@ -224,7 +224,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 
 	if !checkIfShadowed(imgInfo.GraphDriver) {
 		fmt.Println("Container not debloated/shadowed, no need to export")
-		return false, nil
+		return false, ""
 	}
 
 	// export original image to reuse the structure
@@ -251,20 +251,21 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	layerInfos := ExtractLayersInfo(&imgInfo, overlayPath, dockerRootDir)
 	shadowLayers := []image.ShadowLayer{}
 	for _, l := range layerInfos {
-		shadowLayer := image.ShadowLayer{LayerInfo: l}
+		shadowLayer := image.NewShadowLayer(l)
 		shadowLayers = append(shadowLayers, shadowLayer)
 	}
 	umountAllLayers(imgInfo.GraphDriver)
 	fmt.Println("total layers: ", len(shadowLayers))
 	for _, l := range shadowLayers {
 		if !util.PathExist(l.GetRealPath()) {
-			fmt.Println("real path not exist, this layer might already be exported")
+			fmt.Println("real path not exist, this layer might already be exported: ", l.GetRealPath())
 			continue
 		} else {
 			if err := os.RemoveAll(l.GetDiffPath()); err != nil {
 				panic(err)
 			} else {
 				if err := util.Move(l.GetRealPath(), l.GetDiffPath()); err != nil {
+					fmt.Println("move from: ", l.GetRealPath(), " to: ", l.GetDiffPath())
 					panic(err)
 				}
 			}
@@ -285,7 +286,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 		imgsTarFs.GetImageJson().Rootfs.DiffIds[layerLen-1-i] = "sha256:" + tarFsLayer.LayerTarSha256Sum()
 		count++
 		if topN != -1 && count >= topN {
-			fmt.Println("Only export top ", topN, " layers. This is particularly useful for servelss containers")
+			fmt.Println("Only export top ", topN, " layers.")
 			break
 		}
 	}
@@ -299,8 +300,16 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	targetTarPath := filepath.Join("/tmp/", "bafs.tar")
 	imgsTarFs.TarWholeFs(targetTarPath)
 
+	for _, l := range shadowLayers {
+		l.Restore()
+	}
+
+	return true, targetTarPath
+}
+
+func LoadImage(imgTarPath string, cli *client.Client) {
 	// load the generated image tar file
-	imageFile, err := os.Open(targetTarPath)
+	imageFile, err := os.Open(imgTarPath)
 	if err != nil {
 		panic(err)
 	}
@@ -314,5 +323,4 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	if err != nil {
 		panic(err)
 	}
-	return true, shadowLayers
 }

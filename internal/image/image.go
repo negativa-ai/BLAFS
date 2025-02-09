@@ -95,6 +95,47 @@ func (l *LayerInfo) TruncateDiff() {
 	}
 }
 
+// Create a new layer from a layer path, with some very basic fields
+func NewLayerInfo(layerPath string) *LayerInfo {
+	var layer LayerInfo
+	layer.layerPath = layerPath
+	absDiffPath := filepath.Join(layerPath, "diff")
+	if !util.PathExist(absDiffPath) {
+		panic("Diff dir not exist: " + absDiffPath)
+	}
+	layer.diffPath = absDiffPath
+
+	absLinkPath := filepath.Join(layerPath, "link")
+	if !util.PathExist(absLinkPath) {
+		panic("Link file not exist: " + absLinkPath)
+	}
+	layer.linkPath = absLinkPath
+
+	linkContent, err := os.ReadFile(absLinkPath)
+	if err != nil {
+		panic(err)
+	}
+	layer.linkContent = string(linkContent)
+
+	absLowerPath := filepath.Join(layerPath, "lower")
+	if !util.PathExist(absLowerPath) {
+		layer.lowerPath = ""
+		layer.lowerContent = ""
+	} else {
+		layer.lowerPath = absLowerPath
+		lowerData, err := os.ReadFile(absLowerPath)
+		if err != nil {
+			panic(err)
+		}
+		layer.lowerContent = string(lowerData)
+	}
+
+	layer.layerName = filepath.Base(layerPath)
+	layer.lLinkPath = filepath.Join(filepath.Dir(layerPath), "l", layer.linkContent)
+
+	return &layer
+}
+
 type OriginalLayer struct {
 	LayerInfo
 }
@@ -127,9 +168,17 @@ func (l *OriginalLayer) Shadow() ShadowLayer {
 	} else {
 		shadow.lowerPath = filepath.Join(parentPath, layerName, "lower")
 	}
+	fmt.Println(l.lLinkPath)
+	fmt.Println(l.linkContent)
+	fmt.Println(shadow.linkContent)
+
 	shadow.lLinkPath = filepath.Join(l.lLinkPath[:len(l.lLinkPath)-len(l.linkContent)], shadow.linkContent)
 
 	return shadow
+}
+
+func NewOriginalLayer(layerInfo LayerInfo) OriginalLayer {
+	return OriginalLayer{LayerInfo: layerInfo}
 }
 
 type ShadowLayer struct {
@@ -272,45 +321,12 @@ func (l *ShadowLayer) Dump() {
 	}
 }
 
-// Create a new layer from a layer path, with some very basic fields
-func NewLayerInfo(layerPath string) *LayerInfo {
-	var layer LayerInfo
-	layer.layerPath = layerPath
-	absDiffPath := filepath.Join(layerPath, "diff")
-	if !util.PathExist(absDiffPath) {
-		panic("Diff dir not exist: " + absDiffPath)
-	}
-	layer.diffPath = absDiffPath
-
-	absLinkPath := filepath.Join(layerPath, "link")
-	if !util.PathExist(absLinkPath) {
-		panic("Link file not exist: " + absLinkPath)
-	}
-	layer.linkPath = absLinkPath
-
-	linkContent, err := os.ReadFile(absLinkPath)
-	if err != nil {
-		panic(err)
-	}
-	layer.linkContent = string(linkContent)
-
-	absLowerPath := filepath.Join(layerPath, "lower")
-	if !util.PathExist(absLowerPath) {
-		layer.lowerPath = ""
-		layer.lowerContent = ""
-	} else {
-		layer.lowerPath = absLowerPath
-		lowerData, err := os.ReadFile(absLowerPath)
-		if err != nil {
-			panic(err)
-		}
-		layer.lowerContent = string(lowerData)
+func NewShadowLayer(layerInfo LayerInfo) ShadowLayer {
+	return ShadowLayer{
+		LayerInfo: layerInfo,
+		realPath:  filepath.Join(layerInfo.layerPath, "real"),
 	}
 
-	layer.layerName = filepath.Base(layerPath)
-	layer.linkPath = filepath.Join(filepath.Dir(layerPath), "l", layer.linkContent)
-
-	return &layer
 }
 
 type ImgTarLayer struct {

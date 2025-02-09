@@ -10,3 +10,7 @@ SPDLOG_LEVEL=debug ./debloated_fs --realdir=/home/ubuntu/repos/BAFFS/build/real 
 
 ls ./mount/aaa
 Not support create file
+
+ ./build/baffs shadow  --images=file_reader:latest
+ ./build/baffs debloat  --images=file_reader:latest 
+ must run with tags

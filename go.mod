@@ -5,6 +5,7 @@ go 1.23.6
 require github.com/stretchr/testify v1.10.0
 
 require (
+	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/docker v27.5.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -24,6 +25,7 @@ require (
 )
 
 require (
+	github.com/alexflint/go-arg v1.5.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.8.1+incompatible
 	github.com/opencontainers/image-spec v1.0.2

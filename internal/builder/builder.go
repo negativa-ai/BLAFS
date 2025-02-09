@@ -16,7 +16,6 @@ import (
 	"github.com/jzh18/baffs/internal/image"
 	"github.com/jzh18/baffs/internal/mount"
 	"github.com/jzh18/baffs/internal/util"
-	"golang.org/x/tools/godoc/util"
 )
 
 // Extract layer name from graph driver, from top to bottom

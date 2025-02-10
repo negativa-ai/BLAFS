@@ -12,6 +12,8 @@ import (
 	"github.com/alexflint/go-arg"
 	"github.com/docker/docker/client"
 	"github.com/jzh18/baffs/internal/builder"
+	"github.com/jzh18/baffs/internal/image"
+	"github.com/jzh18/baffs/internal/mount"
 	"github.com/jzh18/baffs/internal/util"
 )
 
@@ -37,34 +39,61 @@ func restartDocker() {
 	fmt.Println(string(stdout))
 }
 
-func shadow(imgName string, workDir string, overlayPath string,
+func shadow(imgName []string, workDir string, overlayPath string,
 	dockerRootDir string, cli *client.Client, ctx *context.Context) {
-	shadowed, originalLayers, shadowLayers := builder.ShadowImage(imgName, workDir, overlayPath, dockerRootDir, cli, ctx, "")
-	if !shadowed {
+	var allShadowLayers [][]image.ShadowLayer
+	var allImgMounts [][]mount.Mount
+	for _, imgName := range imgName {
+
+		shadowed, originalLayers, shadowLayers := builder.ShadowImage(imgName, workDir, overlayPath, dockerRootDir, cli, ctx, "")
+		if !shadowed {
+			allShadowLayers = append(allShadowLayers, shadowLayers)
+			mounts := builder.CreateMounts("/home/ubuntu/repos/BAFFS/build/debloated_fs", originalLayers, shadowLayers)
+			allImgMounts = append(allImgMounts, mounts)
+		} else {
+			fmt.Println("already shadowed")
+		}
+	}
+
+	for _, shadowLayers := range allShadowLayers {
 		for _, l := range shadowLayers {
 			l.Dump()
 		}
-		time.Sleep(3 * time.Second)
-		restartDocker()
-		mounts := builder.CreateMounts("/home/ubuntu/repos/BAFFS/build/debloated_fs", originalLayers, shadowLayers)
+	}
+
+	time.Sleep(3 * time.Second)
+	restartDocker()
+	for _, mounts := range allImgMounts {
 		for _, m := range mounts {
 			m.Mount()
 		}
-
-	} else {
-		fmt.Println("already shadowed")
 	}
-
 }
 
-func debloat(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) {
-	shadowed, imgTarPath := builder.ExportImg(imgName, workDir, overlayPath, dockerRootDir, cli, ctx, topN)
-	if shadowed {
-		restartDocker()
-		time.Sleep(3 * time.Second)
-		builder.LoadImage(imgTarPath, cli)
-
+func debloat(imgNames []string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) {
+	var imgPaths []string
+	var allShadowLayers [][]image.ShadowLayer
+	for _, imgName := range imgNames {
+		shadowed, imgTarPath, shadowLayers := builder.ExportImg(imgName, workDir, overlayPath, dockerRootDir, cli, ctx, topN)
+		if shadowed {
+			imgPaths = append(imgPaths, imgTarPath)
+			allShadowLayers = append(allShadowLayers, shadowLayers)
+		}
 	}
+
+	for _, shadowLayers := range allShadowLayers {
+		for _, l := range shadowLayers {
+			l.Restore()
+		}
+	}
+
+	restartDocker()
+	time.Sleep(3 * time.Second)
+
+	for _, imgTarPath := range imgPaths {
+		builder.LoadImage(imgTarPath, cli)
+	}
+
 }
 
 func main() {
@@ -94,9 +123,9 @@ func main() {
 	switch {
 	case args.Shadow != nil:
 		images := strings.Split(args.Shadow.Images, ",")
-		shadow(images[0], workDir, overlayPath, dockerRootDir, cli, &ctx)
+		shadow(images, workDir, overlayPath, dockerRootDir, cli, &ctx)
 	case args.Debloat != nil:
 		images := strings.Split(args.Debloat.Images, ",")
-		debloat(images[0], workDir, overlayPath, dockerRootDir, cli, &ctx, args.Debloat.Top)
+		debloat(images, workDir, overlayPath, dockerRootDir, cli, &ctx, args.Debloat.Top)
 	}
 }

@@ -1,3 +1,24 @@
+// MIT License
+
+// Copyright (c) [2025] [jzh18]
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package util
 
 import (
@@ -11,6 +32,7 @@ import (
 	"path/filepath"
 )
 
+// PathExist checks if a path exists
 func PathExist(absPath string) bool {
 	if _, err := os.Stat(absPath); errors.Is(err, os.ErrNotExist) {
 		return false
@@ -18,6 +40,7 @@ func PathExist(absPath string) bool {
 	return true
 }
 
+// CopyFile copies a file from src to dst
 func CopyFile(src string, dst string) {
 	// Read all content of src to data, may cause OOM for a large file.
 	data, err := os.ReadFile(src)
@@ -31,7 +54,7 @@ func CopyFile(src string, dst string) {
 	}
 }
 
-// mv, works for directory and file
+// Move moves a file from src to dst, works for directory and file
 func Move(src string, dst string) error {
 	if err := os.Rename(src, dst); err != nil {
 		return err
@@ -39,6 +62,7 @@ func Move(src string, dst string) error {
 	return nil
 }
 
+// GetDirSize returns the size of a directory, including all files and subdirectories
 func GetDirSize(path string) int64 {
 	var size int64
 	if err := filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
@@ -56,6 +80,7 @@ func GetDirSize(path string) int64 {
 	return size
 }
 
+// Sha256Sum returns the sha256 sum of a file
 func Sha256Sum(file string) (string, error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -71,6 +96,7 @@ func Sha256Sum(file string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
+// TarFiles creates a tar archive from a directory
 func TarFiles(sourceDir string, destFile string) {
 	// Open the destination file for writing
 	dest, err := os.Create(destFile)

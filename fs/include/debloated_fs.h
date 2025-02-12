@@ -1,3 +1,24 @@
+// MIT License
+
+// Copyright (c) [2025] [jzh18]
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 #ifndef BAFFS_FS_DEBLOATED_FS_H_
 #define BAFFS_FS_DEBLOATED_FS_H_
 
@@ -12,6 +33,7 @@
 #define _XOPEN_SOURCE 700
 #endif
 
+// Command line options of the executable
 struct Options
 {
     const char *real_dir;  // files accessed will be moved to real_dir from lower_dir
@@ -19,8 +41,10 @@ struct Options
     const char *optimize;  // reserved for future optimization
 };
 
+// The global variable to store the command line options
 static struct Options BAFFS_FUSE_OPTS{NULL, NULL, NULL}; // global variable to store options
 
+// The structure to store the directory pointer and the offset
 struct BaffsDirp
 {
     DIR *dp;
@@ -28,7 +52,12 @@ struct BaffsDirp
     off_t offset;
 };
 
-void fuse_opt_init(struct fuse_args *args); // initialize the global FUSE_OPTS, must be called before mounting
+// Initialize the global `BAFFS_FUSE_OPTS`, must be called before mounting
+void fuse_opt_init(struct fuse_args *args);
+
+/**
+ * All the functions below are the callbacks of FUSE operations
+ */
 
 void *baffs_init(struct fuse_conn_info *conn, struct fuse_config *cfg);
 

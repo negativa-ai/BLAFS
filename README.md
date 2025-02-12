@@ -1,3 +1,5 @@
+![example workflow](https://github.com/jzh18/BAFFS/actions/workflows/main.yml/badge.svg)
+
 # BAFFS
 sudo apt-get install libfuse3-dev
 mkdir build

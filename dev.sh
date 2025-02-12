@@ -15,5 +15,6 @@ if [ "$(docker ps -aq -f status=exited -f name=baffs-dev)" ]; then
     exit 0
 fi
 
-docker run  -d --name baffs-dev --privileged=true  -v /tmp/docker:/var/lib/docker  -v $PWD:/home/ubuntu/repos/BAFFS baffs-dev
+# no need to mount .ssh if you don't need to push/pull from the repo
+docker run  -d --name baffs-dev --privileged=true  -v /tmp/docker:/var/lib/docker  -v $PWD:/home/ubuntu/repos/BAFFS -v /home/ubuntu/.ssh/:/home/ubuntu/.ssh/   baffs-dev
 docker exec -it baffs-dev /bin/zsh

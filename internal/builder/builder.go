@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -76,6 +77,7 @@ func ExtractLayersInfo(imgInfo *types.ImageInspect, overlayPath string, dockerRo
 		// find corresponsding original layer
 		i := 0
 		for ; i < len(layerInfos); i++ {
+			fmt.Println("layer path: ", layerInfos[i].GetLayerPath(), " expected path: ", expectedAbsDir)
 			if layerInfos[i].GetLayerPath() == expectedAbsDir {
 				break
 			}
@@ -197,26 +199,26 @@ func CreateMounts(fsExePath string, originalLayers []image.OriginalLayer, shadow
 	return mounts
 }
 
-func umount(mount_point string) {
-	cmd := exec.Command("umount", "-f", mount_point)
+func umount(mountPoint string, mountType string) {
+	cmd := exec.Command("umount", "-f", "-A", "-t", mountType, mountPoint)
 	fmt.Println("umount layer: ", cmd)
 	cmd.Output()
 }
 
-func umountAllLayers(graphDriver types.GraphDriverData) {
+func umountAllLayers(graphDriver types.GraphDriverData, mountType string) {
 	allLowers := strings.Split(graphDriver.Data["LowerDir"], ":")
 	// umount all lower shadow layers
 	for _, lower := range allLowers {
-		umount(lower)
+		umount(lower, mountType)
 	}
 	shadowDiffPath := graphDriver.Data["UpperDir"]
-	umount(shadowDiffPath)
+	umount(shadowDiffPath, mountType)
 
 }
 
 // Export debloated img.
 // Return if shadowed, shadow layers
-func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) (bool, string) {
+func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) (bool, string, []image.ShadowLayer) {
 	imgInfo, _, err := cli.ImageInspectWithRaw(*ctx, imgName)
 	if err != nil {
 		panic(err)
@@ -224,7 +226,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 
 	if !checkIfShadowed(imgInfo.GraphDriver) {
 		fmt.Println("Container not debloated/shadowed, no need to export")
-		return false, ""
+		return false, "", make([]image.ShadowLayer, 0)
 	}
 
 	// export original image to reuse the structure
@@ -254,7 +256,8 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 		shadowLayer := image.NewShadowLayer(l)
 		shadowLayers = append(shadowLayers, shadowLayer)
 	}
-	umountAllLayers(imgInfo.GraphDriver)
+	umountAllLayers(imgInfo.GraphDriver, "fuse.debloated_fs")
+	time.Sleep(1 * time.Second)
 	fmt.Println("total layers: ", len(shadowLayers))
 	for _, l := range shadowLayers {
 		if !util.PathExist(l.GetRealPath()) {
@@ -297,14 +300,11 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	imgsTarFs.DumpManifest()
 
 	// tar the image fs
-	targetTarPath := filepath.Join("/tmp/", "bafs.tar")
+	targetTarPath := filepath.Join("/tmp/", tarName+".debloated")
+	fmt.Println("target tar path: ", targetTarPath)
 	imgsTarFs.TarWholeFs(targetTarPath)
 
-	for _, l := range shadowLayers {
-		l.Restore()
-	}
-
-	return true, targetTarPath
+	return true, targetTarPath, shadowLayers
 }
 
 func LoadImage(imgTarPath string, cli *client.Client) {

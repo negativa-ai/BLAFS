@@ -44,4 +44,6 @@ RUN pip install pyyaml
 
 WORKDIR /home/ubuntu/repos/BAFFS
 
-ENTRYPOINT ["dockerd"]
+ENTRYPOINT ["/sbin/init"]
+
+CMD ["dockerd"]

@@ -170,13 +170,13 @@ int baffs_readlink(const char *_path, char *buf, size_t size)
   spdlog::debug("readlink callback");
   std::string redirected_path_string = redirect(_path);
   const char *redirected_path = redirected_path_string.c_str();
-  int res = readlink(redirected_path, buf, size);
+  int res = readlink(redirected_path, buf, size - 1);
   if (res == -1)
   {
     return -errno;
   }
   buf[res] = '\0';
-  return res;
+  return 0;
 }
 
 int baffs_opendir(const char *_path, struct fuse_file_info *fi)

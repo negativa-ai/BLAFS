@@ -327,7 +327,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	imgsTarFs.DumpImgJson()
 
 	// set tag
-	imgsTarFs.GetManifest()[0].RepoTags[0] = imgsTarFs.GetManifest()[0].RepoTags[0] + "-bafs"
+	imgsTarFs.GetManifest()[0].RepoTags[0] = imgsTarFs.GetManifest()[0].RepoTags[0] + "-baffs"
 	imgsTarFs.DumpManifest()
 
 	// tar the image fs

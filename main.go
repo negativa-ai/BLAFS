@@ -39,7 +39,8 @@ import (
 )
 
 type ShadowCmd struct {
-	Images string `arg:"-i,--images" help:"Images to shadow, separated by comma"`
+	Images      string `arg:"-i,--images" help:"Images to shadow, separated by comma"`
+	DebloatedFs string `arg:"-d,--debloatedfs" help:"Path to debloated_fs binary" default:"/usr/bin/debloated_fs"`
 }
 type DebloatCmd struct {
 	Images string `arg:"-i,--images" help:"Images to debloat separated by comma"`
@@ -61,7 +62,7 @@ func restartDocker() {
 }
 
 func shadow(imgName []string, workDir string, overlayPath string,
-	dockerRootDir string, cli *client.Client, ctx *context.Context) {
+	dockerRootDir string, cli *client.Client, ctx *context.Context, debloatedFs string) {
 	var allShadowLayers [][]image.ShadowLayer
 	var allImgMounts [][]mount.Mount
 	for _, imgName := range imgName {
@@ -69,7 +70,7 @@ func shadow(imgName []string, workDir string, overlayPath string,
 		shadowed, originalLayers, shadowLayers := builder.ShadowImage(imgName, workDir, overlayPath, dockerRootDir, cli, ctx, "")
 		if !shadowed {
 			allShadowLayers = append(allShadowLayers, shadowLayers)
-			mounts := builder.CreateMounts("/home/ubuntu/repos/BAFFS/build/debloated_fs", originalLayers, shadowLayers)
+			mounts := builder.CreateMounts(debloatedFs, originalLayers, shadowLayers)
 			allImgMounts = append(allImgMounts, mounts)
 		} else {
 			fmt.Println("already shadowed")
@@ -144,7 +145,8 @@ func main() {
 	switch {
 	case args.Shadow != nil:
 		images := strings.Split(args.Shadow.Images, ",")
-		shadow(images, workDir, overlayPath, dockerRootDir, cli, &ctx)
+		debloatedFs := args.Shadow.DebloatedFs
+		shadow(images, workDir, overlayPath, dockerRootDir, cli, &ctx, debloatedFs)
 	case args.Debloat != nil:
 		images := strings.Split(args.Debloat.Images, ",")
 		debloat(images, workDir, overlayPath, dockerRootDir, cli, &ctx, args.Debloat.Top)

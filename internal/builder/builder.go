@@ -1,3 +1,24 @@
+// MIT License
+
+// Copyright (c) [2025] [jzh18]
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package builder
 
 import (
@@ -19,7 +40,8 @@ import (
 	"github.com/jzh18/baffs/internal/util"
 )
 
-// Extract layer name from graph driver, from top to bottom
+// extractLayerNames extracts layer names from graph driver.
+// It returns a list of layer names.
 func extractLayerNames(graphDriver types.GraphDriverData) []string {
 	var allLayers []string
 	upper := graphDriver.Data["UpperDir"]
@@ -38,7 +60,9 @@ func extractLayerNames(graphDriver types.GraphDriverData) []string {
 	return layerNames
 }
 
-// https://www.baeldung.com/linux/docker-image-storage-host
+// generateChainId generates a chain id from previous chain id and diff id.
+// See https://www.baeldung.com/linux/docker-image-storage-host
+// It returns a chain id.
 func generateChainId(preChainId string, diffId string) string {
 	str := preChainId + " " + diffId
 	chainId := fmt.Sprintf("%x", sha256.Sum256([]byte(str)))
@@ -46,7 +70,8 @@ func generateChainId(preChainId string, diffId string) string {
 
 }
 
-// extract layers from image inspect, from top to bottom
+// ExtractLayersInfo extracts layer info from image inspect, from top to bottom.
+// It returns a list of layer info.
 func ExtractLayersInfo(imgInfo *types.ImageInspect, overlayPath string, dockerRootDir string) []image.LayerInfo {
 	layerNames := extractLayerNames(imgInfo.GraphDriver)
 	// there should only return image inspect dirs
@@ -100,10 +125,12 @@ func ExtractLayersInfo(imgInfo *types.ImageInspect, overlayPath string, dockerRo
 	return layerInfos
 }
 
+// checkIfShadowed checks if the image is already shadowed.
 func checkIfShadowed(graphDriver types.GraphDriverData) bool {
 	return strings.Contains(graphDriver.Data["UpperDir"], "shadow")
 }
 
+// generateTarFileName generates a tar file name from image name.
 func generateTarFileName(imgName string) string {
 	s := strings.ReplaceAll(imgName, ":", "_")
 	s = strings.ReplaceAll(s, "/", "_") + ".tar"
@@ -111,8 +138,9 @@ func generateTarFileName(imgName string) string {
 
 }
 
-// generate_lowers, given a list of layers, layers[0] is the top layer
-// genaretes corresponding lowers for each layer
+// generateLowers generates lowers for each layer.
+// `layers[0]` is the top layer.
+// It returns a list of lowers.
 func generateLowers(layers []image.ShadowLayer) []string {
 	allLowers := []string{""}
 	curLower := "l/" + layers[len(layers)-1].GetlinkContent()
@@ -123,6 +151,7 @@ func generateLowers(layers []image.ShadowLayer) []string {
 	return allLowers
 }
 
+// saveImage saves the original image to a tar file.
 func saveImage(workDir string, cli *client.Client, ctx *context.Context, imgName string) {
 	// bak up the original image
 	reader, err := cli.ImageSave(*ctx, []string{imgName})
@@ -142,8 +171,9 @@ func saveImage(workDir string, cli *client.Client, ctx *context.Context, imgName
 	reader.Close()
 }
 
-// return mount and shadow layers
-// this will not create anything on the filesystem, just the abstraction in memory for shadow layers
+// ShadowImage shadows the image. For each original layer, it creates a shadow layer in memory.
+// It does not create anything on the filesystem.
+// It returns if shadowed, original layers, shadow layers.
 func ShadowImage(imgName string, workDir string, overlayPath string,
 	dockerRootDir string, cli *client.Client, ctx *context.Context, optimize string) (bool, []image.OriginalLayer, []image.ShadowLayer) {
 	imgInfo, _, err := cli.ImageInspectWithRaw(*ctx, imgName)
@@ -179,6 +209,7 @@ func ShadowImage(imgName string, workDir string, overlayPath string,
 	return shadowed, originalLayers, shadowLayers
 }
 
+// createMount creates a mount in memory abstraction, not create anything on the filesystem.
 func createMount(fsExePath string, originalLaye image.OriginalLayer, shadowLayer image.ShadowLayer) mount.Mount {
 	mountPoint := shadowLayer.GetDiffPath()
 	kvArgs := map[string]string{
@@ -190,7 +221,7 @@ func createMount(fsExePath string, originalLaye image.OriginalLayer, shadowLayer
 	return mount.NewMount(fsExePath, mountPoint, kvArgs, flagArgs)
 }
 
-// also in memory abstraction, not create anything on the filesystem
+// CreateMounts creates mounts for each layer. It does not create anything on the filesystem.
 func CreateMounts(fsExePath string, originalLayers []image.OriginalLayer, shadowLayers []image.ShadowLayer) []mount.Mount {
 	var mounts []mount.Mount
 	for i := 0; i < len(originalLayers); i++ {
@@ -216,8 +247,8 @@ func umountAllLayers(graphDriver types.GraphDriverData, mountType string) {
 
 }
 
-// Export debloated img.
-// Return if shadowed, shadow layers
+// ExportImg exports the debloated image to a tar file.
+// It returns if exported, target tar path, shadow layers.
 func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) (bool, string, []image.ShadowLayer) {
 	imgInfo, _, err := cli.ImageInspectWithRaw(*ctx, imgName)
 	if err != nil {
@@ -307,6 +338,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	return true, targetTarPath, shadowLayers
 }
 
+// LoadImage loads the generated image tar file.
 func LoadImage(imgTarPath string, cli *client.Client) {
 	// load the generated image tar file
 	imageFile, err := os.Open(imgTarPath)

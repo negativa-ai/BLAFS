@@ -1,3 +1,24 @@
+// MIT License
+
+// Copyright (c) [2025] [jzh18]
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package image
 
 import (
@@ -12,11 +33,9 @@ import (
 )
 
 /*
-Create an overlay layer.
-This layer is in memory, not in the filesystem.
-Until Dump() is called, the layer will be created in the filesystem.
+A LayerInfo represents the file structure of an original overlay layer of a docker image.
+An original overlay layer is organized as follows:
 {overlay_root_dir}/
-
 	{layer_name}/
 		diff/
 		link: l/link_{layer_name}
@@ -24,6 +43,9 @@ Until Dump() is called, the layer will be created in the filesystem.
 		real/
 	l/
 		link_{layer_name} -> ../{layer_name}/diff
+
+All members of LayerInfo are absolute paths.
+None of the methods of LayerInfo change the filesystem.
 */
 
 type LayerInfo struct {
@@ -83,19 +105,7 @@ func (l *LayerInfo) SetSizePath(sizePath string) {
 	}
 }
 
-// Truncate diff layer
-func (l *LayerInfo) TruncateDiff() {
-	// this will remove the diff layer too
-	if err := os.RemoveAll(l.diffPath); err != nil {
-		panic(err)
-	}
-	// create an empty diff layer
-	if err := os.Mkdir(l.diffPath, 0755); err != nil {
-		panic(err)
-	}
-}
-
-// Create a new layer from a layer path, with some very basic fields
+// NewLayerInfo creates a new LayerInfo from a layer path, with some very basic fields
 func NewLayerInfo(layerPath string) *LayerInfo {
 	var layer LayerInfo
 	layer.layerPath = layerPath
@@ -136,11 +146,13 @@ func NewLayerInfo(layerPath string) *LayerInfo {
 	return &layer
 }
 
+// An OriginalLayer represents an original overlay layer of a docker image.
 type OriginalLayer struct {
 	LayerInfo
 }
 
-// Construct a shadow layer in memory, but not create in the filesystem
+// Shadow creates a ShadowLayer from an original layer in memory, not create it in the filesystem.
+// It is the counterpart of ShadowLayer.Original.
 func (l *OriginalLayer) Shadow() ShadowLayer {
 	layerName := "shadow_" + l.layerName
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
@@ -177,10 +189,14 @@ func (l *OriginalLayer) Shadow() ShadowLayer {
 	return shadow
 }
 
+// NewOriginalLayer creates a new OriginalLayer from a LayerInfo
 func NewOriginalLayer(layerInfo LayerInfo) OriginalLayer {
 	return OriginalLayer{LayerInfo: layerInfo}
 }
 
+// A ShadowLayer represents a shadowed overlay layer of a docker image.
+// Each original layer will have a corresponding shadow layer.
+// Files used in an original layer will be copied to the shadow layer.
 type ShadowLayer struct {
 	LayerInfo
 	realPath string
@@ -190,7 +206,7 @@ func (l *ShadowLayer) GetRealPath() string {
 	return l.realPath
 }
 
-// SetLowers replace existing lowers to new lowers
+// SetLowers replaces existing lowers to new lowers
 func (l *ShadowLayer) SetLowers(newLowers string) {
 	l.lowerContent = newLowers
 }
@@ -207,18 +223,21 @@ func (l *ShadowLayer) GetLayerSize() int64 {
 	return util.GetDirSize(l.realPath)
 }
 
+// DumpLayerSize writes the size of the layer to the size file.
+// It modifies the filesystem.
 func (l *ShadowLayer) DumpLayerSize(size string) {
 	if err := os.WriteFile(l.sizePath, []byte(size), 0600); err != nil {
 		panic(err)
 	}
 }
 
-// archive files under diff directory
+// TarDiff archives the diff directory of the shadow layer to a tar file.
 func (l *ShadowLayer) TarDiff(destFile string) {
 	util.TarFiles(l.diffPath, destFile)
 }
 
-// Construct an original layer from a shadow layer, not create it in the filesystem
+// Original returns the original layer from a shadow layer in memory, not create it in the filesystem
+// It is the counterpart of OriginalLayer.Shadow.
 func (l *ShadowLayer) Original() OriginalLayer {
 	layerName := l.layerName[len("shadow_"):]
 	parentPath := l.layerPath[:len(l.layerPath)-len(l.layerName)]
@@ -232,6 +251,9 @@ func (l *ShadowLayer) Original() OriginalLayer {
 	return OriginalLayer{LayerInfo: *original}
 }
 
+// Restore restores the filesystem of the docker image to the state before shadowing.
+// It modifies the filesystem.
+// It is the counterpart of Dump.
 func (l *ShadowLayer) Restore() {
 	original := l.Original()
 	bakCacheIdData, err := os.ReadFile(original.cacheidPath + ".bak")
@@ -243,8 +265,8 @@ func (l *ShadowLayer) Restore() {
 	}
 }
 
-// Create dir and files according to the layer
-// Only shadow layers can call this function
+// Dump creates the shadow layer in the filesystem.
+// It is the counterpart of Restore.
 func (l *ShadowLayer) Dump() {
 	var mode fs.FileMode = 0755
 	// create layer
@@ -321,6 +343,7 @@ func (l *ShadowLayer) Dump() {
 	}
 }
 
+// NewShadowLayer creates a new ShadowLayer from a LayerInfo
 func NewShadowLayer(layerInfo LayerInfo) ShadowLayer {
 	return ShadowLayer{
 		LayerInfo: layerInfo,
@@ -329,6 +352,7 @@ func NewShadowLayer(layerInfo LayerInfo) ShadowLayer {
 
 }
 
+// An ImgTarLayer represents a layer of a docker image in a tar file.
 type ImgTarLayer struct {
 	versionPath  string
 	layerTarPath string
@@ -341,6 +365,7 @@ func (l *ImgTarLayer) RmLayerTar() {
 	}
 }
 
+// LayerTarSha256Sum returns the sha256 sum of the layer tar file.
 func (l *ImgTarLayer) LayerTarSha256Sum() string {
 	s, err := util.Sha256Sum(l.layerTarPath)
 	if err != nil {
@@ -349,11 +374,15 @@ func (l *ImgTarLayer) LayerTarSha256Sum() string {
 	return s
 }
 
+// GetLayerTarPath returns the path of the layer tar file.
 func (l *ImgTarLayer) GetLayerTarPath() string {
 	return l.layerTarPath
 }
 
 // we only care about Rootfs, so we set other fileds as interface{}
+
+// An ImgJson represents the json file of a docker image in a tar file.
+// See: https://github.com/moby/moby/blob/master/image/spec/v1.2.md
 type ImgJson struct {
 	Created      interface{} `json:"created"`
 	Author       interface{} `json:"author"`
@@ -367,7 +396,6 @@ type ImgJson struct {
 	History interface{} `json:"history"`
 }
 
-// https://github.com/moby/moby/blob/master/image/spec/v1.2.md
 type ImgTarFs struct {
 	basePath        string
 	layers          []ImgTarLayer // from bottom to top
@@ -418,10 +446,12 @@ func (f *ImgTarFs) DumpManifest() {
 	}
 }
 
+// TarWholeFs archives the whole filesystem of the image to a tar file.
 func (f *ImgTarFs) TarWholeFs(dst string) {
 	util.TarFiles(f.basePath, dst)
 }
 
+// ParseImgTarFs parses the filesystem of a docker image in a tar file.
 func ParseImgTarFs(path string) ImgTarFs {
 	imgTarFs := ImgTarFs{
 		basePath: path,

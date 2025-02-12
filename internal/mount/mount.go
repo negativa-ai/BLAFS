@@ -1,3 +1,24 @@
+// MIT License
+
+// Copyright (c) [2025] [jzh18]
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 package mount
 
 import (
@@ -10,13 +31,16 @@ import (
 
 const MountType = "fuse.debloated_fs"
 
+// A Mount represents a BAFFS mount.
 type Mount struct {
-	exePath    string
-	mountPoint string
-	kvArgs     map[string]string
-	flagArgs   []string
+	exePath    string            // Path to the debloated_fs executable
+	mountPoint string            // Path to the mount point
+	kvArgs     map[string]string // Key-value arguments
+	flagArgs   []string          // Flag arguments
 }
 
+// Mounts a BAFFS mount.
+// A mount is skipped if the mount point is already mounted with the same mount type.
 func (m Mount) Mount() {
 	if IsMountedWithType(m.mountPoint, MountType) {
 		return
@@ -37,6 +61,7 @@ func (m Mount) Mount() {
 	}
 }
 
+// Unmounts a BAFFS mount.
 func (m Mount) Unmount() {
 	// umount /tmp/mnt5
 	cmd := exec.Command("umount", m.mountPoint)

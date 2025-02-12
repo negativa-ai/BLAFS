@@ -30,6 +30,18 @@ ENV PATH=$PATH:/usr/local/go/bin
 # install libfuse
 RUN apt-get install libfuse3-dev -y
 
+# install python3.10
+RUN apt install software-properties-common -y
+RUN add-apt-repository ppa:deadsnakes/ppa -y
+RUN apt update
+RUN apt install python3.10 python3.10-venv python3.10-dev -y
+RUN ls -la /usr/bin/python3
+RUN rm /usr/bin/python3
+RUN ln -s python3.10 /usr/bin/python3
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+RUN pip install redis
+RUN pip install pyyaml
+
 WORKDIR /home/ubuntu/repos/BAFFS
 
 ENTRYPOINT ["dockerd"]

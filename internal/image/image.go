@@ -101,19 +101,19 @@ func NewLayerInfo(layerPath string) *LayerInfo {
 	layer.layerPath = layerPath
 	absDiffPath := filepath.Join(layerPath, "diff")
 	if !util.PathExist(absDiffPath) {
-		panic("Diff dir not exist: " + absDiffPath)
+		fmt.Println("Diff dir not exist: " + absDiffPath) // should log error
 	}
 	layer.diffPath = absDiffPath
 
 	absLinkPath := filepath.Join(layerPath, "link")
 	if !util.PathExist(absLinkPath) {
-		panic("Link file not exist: " + absLinkPath)
+		fmt.Println("Link file not exist: " + absLinkPath) // should log error
 	}
 	layer.linkPath = absLinkPath
 
 	linkContent, err := os.ReadFile(absLinkPath)
 	if err != nil {
-		panic(err)
+		fmt.Println(err) // should log error
 	}
 	layer.linkContent = string(linkContent)
 

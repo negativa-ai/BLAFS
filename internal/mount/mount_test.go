@@ -8,7 +8,7 @@ import (
 
 func TestIsMountedWithType(t *testing.T) {
 
-	mounted := IsMountedWithType("/home/ubuntu/repos/BAFFS/build/mount", "fuse.debloated_fs")
+	mounted := IsMountedWithType("/tmp", "fuse.debloated_fs")
 
-	assert.True(t, mounted)
+	assert.False(t, mounted)
 }

@@ -20,3 +20,8 @@ Not support create file
 docker run -it --rm file_reader:layer_a f1.txt
 docker run -it --rm file_reader:layer_b f2.txt
 ./build/baffs debloat  --images=file_reader:layer_a,file_reader:layer_b
+
+
+./build/baffs shadow  --images=redis:7.4.1
+docker run --rm -it --network host redis:7.4.1 
+./build/baffs debloat  --images=redis:7.4.1

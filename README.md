@@ -72,8 +72,19 @@ docker pull justinzhf/baffs:latest
     If the redis server can be started, then the debloating is successful!
 
 ## Advanced Usage
+
 BAFFS has three working modes: no-sharing, sharing, and serverless. 
 Please refer to the paper for more details.
+
+### Set Logging Level
+Set logging level for `baffs`:
+```
+LOG_LEVEL=debug|info|warning|error baffs ...
+```
+Set logging level for `debloated_fs`:
+```
+SPDLOG_LEVEL=debug|info|warning|error baffs ...
+```
 
 ### Debloat Multiple Images at Once
 If two images share some common layers, we can debloat them together.

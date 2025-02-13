@@ -23,10 +23,11 @@ package mount
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const MountType = "fuse.debloated_fs"
@@ -54,7 +55,7 @@ func (m Mount) Mount() {
 	args = append(args, m.mountPoint)
 
 	cmd := exec.Command(m.exePath, args...)
-	fmt.Println(cmd)
+	log.Debug(cmd)
 	_, err := cmd.Output()
 	if err != nil {
 		panic(err)
@@ -65,7 +66,7 @@ func (m Mount) Mount() {
 func (m Mount) Unmount() {
 	// umount /tmp/mnt5
 	cmd := exec.Command("umount", m.mountPoint)
-	fmt.Println(cmd)
+	log.Debug(cmd)
 	_, err := cmd.Output()
 	if err != nil {
 		panic(err)

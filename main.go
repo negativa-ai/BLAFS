@@ -23,7 +23,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +35,7 @@ import (
 	"github.com/jzh18/baffs/internal/image"
 	"github.com/jzh18/baffs/internal/mount"
 	"github.com/jzh18/baffs/internal/util"
+	log "github.com/sirupsen/logrus"
 )
 
 type ShadowCmd struct {
@@ -53,16 +53,18 @@ var args struct {
 }
 
 func restartDocker() {
+	log.Debug("Restarting docker")
 	cmd := exec.Command("systemctl", "restart", "docker")
 	stdout, err := cmd.Output()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(stdout))
+	log.Debug("Restarted docker: ", string(stdout))
 }
 
 func shadow(imgName []string, workDir string, overlayPath string,
 	dockerRootDir string, cli *client.Client, ctx *context.Context, debloatedFs string) {
+	log.Info("Shadowing images: ", imgName)
 	var allShadowLayers [][]image.ShadowLayer
 	var allImgMounts [][]mount.Mount
 	for _, imgName := range imgName {
@@ -73,7 +75,7 @@ func shadow(imgName []string, workDir string, overlayPath string,
 			mounts := builder.CreateMounts(debloatedFs, originalLayers, shadowLayers)
 			allImgMounts = append(allImgMounts, mounts)
 		} else {
-			fmt.Println("already shadowed")
+			log.Info("Image ", imgName, " already shadowed")
 		}
 	}
 
@@ -85,6 +87,7 @@ func shadow(imgName []string, workDir string, overlayPath string,
 
 	time.Sleep(3 * time.Second)
 	restartDocker()
+	log.Info("Mounting debloated_fs")
 	for _, mounts := range allImgMounts {
 		for _, m := range mounts {
 			m.Mount()
@@ -93,6 +96,7 @@ func shadow(imgName []string, workDir string, overlayPath string,
 }
 
 func debloat(imgNames []string, workDir string, overlayPath string, dockerRootDir string, cli *client.Client, ctx *context.Context, topN int) {
+	log.Info("Debloating images: ", imgNames)
 	var imgPaths []string
 	var allShadowLayers [][]image.ShadowLayer
 	for _, imgName := range imgNames {
@@ -111,14 +115,38 @@ func debloat(imgNames []string, workDir string, overlayPath string, dockerRootDi
 
 	restartDocker()
 	time.Sleep(3 * time.Second)
-
+	log.Info("Loading debloated images")
 	for _, imgTarPath := range imgPaths {
 		builder.LoadImage(imgTarPath, cli)
 	}
 
 }
 
+func setLogger() {
+	levelStr := os.Getenv("LOG_LEVEL")
+	if levelStr == "" {
+		// Default to Info level if LOG_LEVEL is not set
+		log.SetLevel(log.InfoLevel)
+	} else {
+		// Parse the level string (case-insensitive)
+		level, err := log.ParseLevel(strings.ToLower(levelStr))
+		if err != nil {
+			// Warn and default if the provided level is invalid
+			log.Warnf("Invalid LOG_LEVEL '%s', defaulting to Info", levelStr)
+			log.SetLevel(log.InfoLevel)
+		} else {
+			log.SetLevel(level)
+		}
+	}
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+}
+
 func main() {
+	setLogger()
+
 	p := arg.MustParse(&args)
 	if p.Subcommand() == nil {
 		p.WriteHelp(os.Stdout)

@@ -24,12 +24,12 @@ package image
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/jzh18/baffs/internal/util"
+	log "github.com/sirupsen/logrus"
 )
 
 /*
@@ -111,19 +111,19 @@ func NewLayerInfo(layerPath string) *LayerInfo {
 	layer.layerPath = layerPath
 	absDiffPath := filepath.Join(layerPath, "diff")
 	if !util.PathExist(absDiffPath) {
-		fmt.Println("Diff dir not exist: " + absDiffPath) // should log error
+		log.Error("Diff dir not exist: ", absDiffPath)
 	}
 	layer.diffPath = absDiffPath
 
 	absLinkPath := filepath.Join(layerPath, "link")
 	if !util.PathExist(absLinkPath) {
-		fmt.Println("Link file not exist: " + absLinkPath) // should log error
+		log.Error("Link file not exist: ", absLinkPath)
 	}
 	layer.linkPath = absLinkPath
 
 	linkContent, err := os.ReadFile(absLinkPath)
 	if err != nil {
-		fmt.Println(err) // should log error
+		log.Error("Read link file failed: ", absLinkPath)
 	}
 	layer.linkContent = string(linkContent)
 
@@ -180,9 +180,6 @@ func (l *OriginalLayer) Shadow() ShadowLayer {
 	} else {
 		shadow.lowerPath = filepath.Join(parentPath, layerName, "lower")
 	}
-	fmt.Println(l.lLinkPath)
-	fmt.Println(l.linkContent)
-	fmt.Println(shadow.linkContent)
 
 	shadow.lLinkPath = filepath.Join(l.lLinkPath[:len(l.lLinkPath)-len(l.linkContent)], shadow.linkContent)
 
@@ -272,7 +269,7 @@ func (l *ShadowLayer) Dump() {
 	// create layer
 	if err := os.Mkdir(l.layerPath, mode); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			fmt.Println("Layer diff dir already exists")
+			log.Debug("Layer diff dir already exists")
 		} else {
 			panic(err)
 		}
@@ -281,7 +278,7 @@ func (l *ShadowLayer) Dump() {
 	// create diff dir
 	if err := os.Mkdir(l.diffPath, mode); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			fmt.Println("Layer diff dir already exists")
+			log.Debug("Layer diff dir already exists")
 		} else {
 			panic(err)
 		}
@@ -290,7 +287,7 @@ func (l *ShadowLayer) Dump() {
 	linkFile, err := os.Create(l.linkPath)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			fmt.Println("Layer link file already exists")
+			log.Debug("Layer link file already exists")
 		} else {
 			panic(err)
 		}
@@ -301,7 +298,7 @@ func (l *ShadowLayer) Dump() {
 	if l.lowerPath != "" {
 		if lower_file, err := os.Create(l.lowerPath); err != nil {
 			if errors.Is(err, os.ErrExist) {
-				fmt.Println("Layer lower file already exists")
+				log.Debug("Layer lower file already exists")
 			} else {
 				panic(err)
 			}
@@ -315,7 +312,7 @@ func (l *ShadowLayer) Dump() {
 	if l.realPath != "" {
 		if err := os.Mkdir(l.realPath, mode); err != nil {
 			if errors.Is(err, os.ErrExist) {
-				fmt.Println("Layer real dir already exists")
+				log.Debug("Layer real dir already exists")
 			} else {
 				panic(err)
 			}
@@ -325,7 +322,7 @@ func (l *ShadowLayer) Dump() {
 	// create l/link_{layer_name}
 	if err := os.Symlink(filepath.Join("../", l.layerName, "diff"), l.lLinkPath); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			fmt.Println("l/link file already exists")
+			log.Debug("l/link file already exists")
 		} else {
 			panic(err)
 		}

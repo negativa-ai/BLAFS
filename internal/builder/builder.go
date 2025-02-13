@@ -38,6 +38,7 @@ import (
 	"github.com/jzh18/baffs/internal/image"
 	"github.com/jzh18/baffs/internal/mount"
 	"github.com/jzh18/baffs/internal/util"
+	log "github.com/sirupsen/logrus"
 )
 
 // extractLayerNames extracts layer names from graph driver.
@@ -102,7 +103,7 @@ func ExtractLayersInfo(imgInfo *types.ImageInspect, overlayPath string, dockerRo
 		// find corresponsding original layer
 		i := 0
 		for ; i < len(layerInfos); i++ {
-			fmt.Println("layer path: ", layerInfos[i].GetLayerPath(), " expected path: ", expectedAbsDir)
+			log.Debug("layer path: ", layerInfos[i].GetLayerPath(), " expected path: ", expectedAbsDir)
 			if layerInfos[i].GetLayerPath() == expectedAbsDir {
 				break
 			}
@@ -159,7 +160,7 @@ func saveImage(workDir string, cli *client.Client, ctx *context.Context, imgName
 		panic(err)
 	}
 	imgTarPath := filepath.Join(workDir, generateTarFileName(imgName))
-	fmt.Println("original img backup path: ", imgTarPath)
+	log.Debug("original img backup path: ", imgTarPath)
 	out, err := os.OpenFile(imgTarPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		panic(err)
@@ -185,7 +186,7 @@ func ShadowImage(imgName string, workDir string, overlayPath string,
 	layerInfos := ExtractLayersInfo(&imgInfo, overlayPath, dockerRootDir)
 	shadowed := checkIfShadowed(imgInfo.GraphDriver)
 	if !shadowed {
-		fmt.Println("patch container")
+		log.Debug("shadowing container")
 		saveImage(workDir, cli, ctx, imgName)
 
 		for _, l := range layerInfos {
@@ -205,7 +206,7 @@ func ShadowImage(imgName string, workDir string, overlayPath string,
 			originalLayers = append(originalLayers, shadowLayer.Original())
 		}
 	}
-	fmt.Println("total layers: ", len(originalLayers))
+	log.Debug("total layers: ", len(originalLayers))
 	return shadowed, originalLayers, shadowLayers
 }
 
@@ -232,7 +233,7 @@ func CreateMounts(fsExePath string, originalLayers []image.OriginalLayer, shadow
 
 func umount(mountPoint string, mountType string) {
 	cmd := exec.Command("umount", "-f", "-A", "-t", mountType, mountPoint)
-	fmt.Println("umount layer: ", cmd)
+	log.Debug("umount layer: ", cmd)
 	cmd.Output()
 }
 
@@ -256,7 +257,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	}
 
 	if !checkIfShadowed(imgInfo.GraphDriver) {
-		fmt.Println("Container not debloated/shadowed, no need to export")
+		log.Info("Container not shadowed, cannot perform debloating")
 		return false, "", make([]image.ShadowLayer, 0)
 	}
 
@@ -270,7 +271,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 		}
 	}
 	cmd := exec.Command("tar", "-xf", originalImgPath, "-C", untarPath)
-	fmt.Println("untar image tar file: ", cmd)
+	log.Debug("untar image tar file: ", cmd)
 	_, err = cmd.Output()
 	if err != nil {
 		panic(err)
@@ -289,17 +290,17 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	}
 	umountAllLayers(imgInfo.GraphDriver, "fuse.debloated_fs")
 	time.Sleep(1 * time.Second)
-	fmt.Println("total layers: ", len(shadowLayers))
+	log.Debug("Total layers: ", len(shadowLayers))
 	for _, l := range shadowLayers {
 		if !util.PathExist(l.GetRealPath()) {
-			fmt.Println("real path not exist, this layer might already be exported: ", l.GetRealPath())
+			log.Debug("real path not exist, this layer might already be exported: ", l.GetRealPath())
 			continue
 		} else {
 			if err := os.RemoveAll(l.GetDiffPath()); err != nil {
 				panic(err)
 			} else {
 				if err := util.Move(l.GetRealPath(), l.GetDiffPath()); err != nil {
-					fmt.Println("move from: ", l.GetRealPath(), " to: ", l.GetDiffPath())
+					log.Error("failed to move from: ", l.GetRealPath(), " to: ", l.GetDiffPath())
 					panic(err)
 				}
 			}
@@ -320,7 +321,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 		imgsTarFs.GetImageJson().Rootfs.DiffIds[layerLen-1-i] = "sha256:" + tarFsLayer.LayerTarSha256Sum()
 		count++
 		if topN != -1 && count >= topN {
-			fmt.Println("Only export top ", topN, " layers.")
+			log.Debug("Only export top ", topN, " layers.")
 			break
 		}
 	}
@@ -332,7 +333,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 
 	// tar the image fs
 	targetTarPath := filepath.Join("/tmp/", tarName+".debloated")
-	fmt.Println("target tar path: ", targetTarPath)
+	log.Debug("target tar path: ", targetTarPath)
 	imgsTarFs.TarWholeFs(targetTarPath)
 
 	return true, targetTarPath, shadowLayers

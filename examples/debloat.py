@@ -43,13 +43,14 @@ def debloat(baffs_path, image):
 def validate(workload_dir, image):
     test_module = _load_module_from_path(
         os.path.join(workload_dir, "workloads.py"))
-    test_module.IMAGE = image+"-bafs"
+    test_module.IMAGE = image+"-baffs"
     suite = unittest.defaultTestLoader.loadTestsFromModule(test_module)
     res = unittest.TextTestRunner(verbosity=2).run(suite)
     if res.wasSuccessful():
         print("Validation successful")
     else:
         print("Validation failed")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -4,11 +4,15 @@ debloated_fs:
 
 baffs:
 	mkdir -p build
-	cd build && go build github.com/jzh18/baffs
+	cd build && go build -buildvcs=false github.com/jzh18/baffs
 
 install: debloated_fs baffs
 	cp build/debloated_fs /usr/bin/debloated_fs
 	cp build/baffs /usr/bin/baffs
 	
-test:
+test: debloated_fs
+	./build/all_test
 	go test -v ./...
+
+integration_test: install
+	./tests/test.sh

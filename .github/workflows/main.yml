@@ -1,4 +1,4 @@
-name: Unit Tests
+name: Tests
 run-name: ${{ github.actor }} is running GitHub Actions
 on: [push]
 jobs:
@@ -11,6 +11,22 @@ jobs:
       - name: Build the dev container
         run: |
           cd ./_docker/dev && ./build.sh && cd ../..
-          docker run  -d --name baffs-dev --privileged=true  -v /tmp/docker:/var/lib/docker  -v $PWD:/home/ubuntu/repos/BAFFS -v /home/ubuntu/.ssh/:/home/ubuntu/.ssh/   baffs-dev
+          docker run  -d --name baffs-dev --privileged=true  -v /tmp/docker:/var/lib/docker  -v $PWD:/home/ubuntu/repos/BAFFS  baffs-dev  
+          docker exec -i baffs-dev make install
       - name: Run Unit Tests
-        run: docker exec -i baffs-dev make test
+        run: |
+          docker exec -i baffs-dev make test
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
+      - name: Build the dev container
+        run: |
+          cd ./_docker/dev && ./build.sh && cd ../..
+          docker run  -d --name baffs-dev --privileged=true  -v /tmp/docker:/var/lib/docker  -v $PWD:/home/ubuntu/repos/BAFFS  baffs-dev  
+          docker exec -i baffs-dev make install
+      - name: Run Integration Tests
+        run: |
+          docker exec -i baffs-dev make integration_test

@@ -1,5 +1,7 @@
 # BAFFS
+
 ![example workflow](https://github.com/jzh18/BAFFS/actions/workflows/main.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Shrink you container size up to 95%.
 
@@ -8,9 +10,9 @@ Shrink you container size up to 95%.
 BAFFS is a bloat-aware filesystem for container debloating.
 The design principles of BAFFS are effective, efficient, and easy to use.
 It detects the files used by the container, and then debloats the container by removing the unused files.
-BAFFS can be used to debloat the container images, which make the smaller, more secure, and faster to deploy.
-Check the paper for more details: [The Cure is in the Cause: A Filesystem for Container Debloating](https://arxiv.org/abs/2305.04641).
+The debloated containers are still functional and can run the same workload as the original containers, but with a much smaller size and faster deployment.
 
+Check the paper for more details: [The Cure is in the Cause: A Filesystem for Container Debloating](https://arxiv.org/abs/2305.04641).
 
 ## Installation
 

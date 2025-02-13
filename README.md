@@ -1,16 +1,20 @@
 # BAFFS
 ![example workflow](https://github.com/jzh18/BAFFS/actions/workflows/main.yml/badge.svg)
-Shrink you container size up to 95% with BAFFS!
+
+Shrink you container size up to 95%.
 
 ## Introduction
 
 BAFFS is a bloat-aware filesystem for container debloating.
 The design principles of BAFFS are effective, efficient, and easy to use.
+It detects the files used by the container, and then debloats the container by removing the unused files.
+BAFFS can be used to debloat the container images, which make the smaller, more secure, and faster to deploy.
+Check the paper for more details: [The Cure is in the Cause: A Filesystem for Container Debloating](https://arxiv.org/abs/2305.04641).
 
 
 ## Installation
 
-The easiest way to install BAFFS is to use Docker image:
+The easiest way to install BAFFS is to use the Docker image:
 ```
 docker pull justinzhf/baffs:latest
 ```
@@ -30,7 +34,7 @@ docker pull justinzhf/baffs:latest
     You can change the path to any other directory you like.
 3. Enter shell of the container:
     ```
-    docker exec -it baffs zsh
+    docker exec -it baffs bash
     ``` 
 4. Inside the container, we pull a redis image. We will debloat this image later.
     ```
@@ -43,7 +47,7 @@ docker pull justinzhf/baffs:latest
     This will convert the filesystem of the redis image to BAFFS filesystem.
 6. Now we run the redis container with profiling workload. For example, we simply start the redis server:
     ```
-    docker run -it --name redis redis:7.4.1
+    docker run -it --rm redis:7.4.1
     ```
     After the redis server is started, use `Ctrl+C` to stop the redis server.
 7. At this step, BAFFS has detected all the files needed by the redis server. We can now debloat the redis image:
@@ -63,17 +67,34 @@ docker pull justinzhf/baffs:latest
     ```
 9. Finally, let's check whether the debloated image can still run the redis server:
     ```
-    docker run -it --name redis redis:7.4.1-baffs
+    docker run -it --rm redis:7.4.1-baffs
     ```
     If the redis server can be started, then the debloating is successful!
 
 ## Advanced Usage
+BAFFS has three working modes: no-sharing, sharing, and serverless. 
+Please refer to the paper for more details.
 
 ### Debloat Multiple Images at Once
-To Be Added
+If two images share some common layers, we can debloat them together.
+And the debloated images will share the same layers.
+
+
+```
+baffs shadow --images=img1,img2 # shadow multiple images, the two images should share the some layers initially
+# run the profiling workload for img1 and img2
+baffs debloat --images=img1,img2 # this will debloat both img1 and img2, with shared layers
+```
 
 ### Debloat Certain Layers of an Image
-To Be Added
+Serverless containers are usually built on top of a base image.
+We can debloat the only the unique layers of the serverless container while keeping the base image untouched.
+
+```
+baffs shadow --images=img1
+# run the profiling workload for img1
+baffs debloat --images=img1 --top=3 # debloat img1 with top 3 layers
+```
 
 ## Citation
 Please cite our paper if you use BAFFS in your research:

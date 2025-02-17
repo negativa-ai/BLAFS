@@ -112,10 +112,10 @@ baffs debloat --images=img1 --top=3 # debloat img1 with top 3 layers
 ## Citation
 Please cite our paper if you use BAFFS in your research:
 ```
-@misc{zhang2023blafsbloatawarefile,
-      title={BLAFS: A Bloat Aware File System}, 
-      author={Huaifeng Zhang and Mohannad Alhanahnah and Ahmed Ali-Eldin},
-      year={2023},
+@misc{zhang2025curecausefilesystemcontainer,
+      title={The Cure is in the Cause: A Filesystem for Container Debloating}, 
+      author={Huaifeng Zhang and Philipp Leitner and Mohannad Alhanahnah and Ahmed Ali-Eldin},
+      year={2025},
       eprint={2305.04641},
       archivePrefix={arXiv},
       primaryClass={cs.SE},

@@ -1,4 +1,4 @@
-# BAFFS
+# BLAFS
 
 ![example workflow](https://github.com/jzh18/BAFFS/actions/workflows/main.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -7,8 +7,8 @@ Shrink you container size up to 95%.
 
 ## Introduction
 
-BAFFS is a bloat-aware filesystem for container debloating.
-The design principles of BAFFS are effective, efficient, and easy to use.
+BLAFS is a bloat-aware filesystem for container debloating.
+The design principles of BLAFS are effective, efficient, and easy to use.
 It detects the files used by the container, and then debloats the container by removing the unused files.
 The debloated containers are still functional and can run the same workload as the original containers, but with a much smaller size and faster deployment.
 
@@ -23,11 +23,11 @@ docker pull justinzhf/baffs:latest
 
 ## Quick Start
 
-1. Pull the BAFFS image:
+1. Pull the BLAFS image:
     ```
     docker pull justinzhf/baffs:latest
     ```
-2. Run the BAFFS container with privileged mode, so that we can run Docker in Docker:
+2. Run the BLAFS container with privileged mode, so that we can run Docker in Docker:
     ```
     docker run  -d --name baffs --privileged=true  -v /tmp/docker:/var/lib/docker justinzhf/baffs:latest
     ```
@@ -52,7 +52,7 @@ docker pull justinzhf/baffs:latest
     docker run -it --rm redis:7.4.1
     ```
     After the redis server is started, use `Ctrl+C` to stop the redis server.
-7. At this step, BAFFS has detected all the files needed by the redis server. We can now debloat the redis image:
+7. At this step, BLAFS has detected all the files needed by the redis server. We can now debloat the redis image:
     ```
     baffs debloat --images=redis:7.4.1
     ```
@@ -75,7 +75,7 @@ docker pull justinzhf/baffs:latest
 
 ## Advanced Usage
 
-BAFFS has three working modes: no-sharing, sharing, and serverless. 
+BLAFS has three working modes: no-sharing, sharing, and serverless. 
 Please refer to the paper for more details.
 
 ### Set Logging Level
@@ -110,7 +110,7 @@ baffs debloat --images=img1 --top=3 # debloat img1 with top 3 layers
 ```
 
 ## Citation
-Please cite our paper if you use BAFFS in your research:
+Please cite our paper if you use BLAFS in your research:
 ```
 @misc{zhang2025curecausefilesystemcontainer,
       title={The Cure is in the Cause: A Filesystem for Container Debloating}, 

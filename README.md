@@ -73,6 +73,20 @@ docker pull justinzhf/baffs:latest
     ```
     If the redis server can be started, then the debloating is successful!
 
+## Script BLAFS 
+
+
+BLAFS debloats a container in three steps:  
+
+1. **Convert** – Converts the container into the BLAFS filesystem.  
+2. **Profiling** – Runs profiling workloads to track file usage.  
+3. **Debloating** – Retains only the files used during profiling, removing everything else.  
+
+This script provides an example of using BLAFS to debloat a Redis container.  
+🔗 [Example Script](https://github.com/negativa-ai/BLAFS/blob/main/tests/test.sh)
+
+
+
 ## Advanced Usage
 
 BLAFS has three working modes: no-sharing, sharing, and serverless. 

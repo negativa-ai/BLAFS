@@ -32,7 +32,7 @@ docker pull justinzhf/baffs:latest
     docker run  -d --name baffs --privileged=true  -v /tmp/docker:/var/lib/docker justinzhf/baffs:latest
     ```
     Note that we mount the host's `/tmp/docker` to the container's `/var/lib/docker`. 
-    In this way, all the images pulled insied the container `baffs` will be stored in the host's `/tmp/docker`.
+    In this way, all the images pulled inside the container `baffs` will be stored in the host's `/tmp/docker`.
     You can change the path to any other directory you like.
 3. Enter shell of the container:
     ```

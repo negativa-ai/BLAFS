@@ -47,18 +47,18 @@ docker pull justinzhf/baffs:latest
     baffs shadow --images=redis:7.4.1
     ```
     This will convert the filesystem of the redis image to BAFFS filesystem.
-6. Now we run the redis container with profiling workload. For example, we simply start the redis server:
+6. Now we run the redis container with profiling workloads. It's recommended to run some extensive workloads, such as the unit tests/integration tests of your container. Here, for brevity, we simply start the redis server:
     ```
     docker run -it --rm redis:7.4.1
     ```
     After the redis server is started, use `Ctrl+C` to stop the redis server.
-7. At this step, BLAFS has detected all the files needed by the redis server. We can now debloat the redis image:
+8. At this step, BLAFS has detected all the files needed by the profiling workloads. We can now debloat the redis image:
     ```
     baffs debloat --images=redis:7.4.1
     ```
     This will generate a new redis image named `redis:7.4.1-baffs`, which has a much smaller size.
 
-8. Now let's compare the size of the redis image before and after debloating:
+9. Now let's compare the size of the redis image before and after debloating:
     ```
     docker images | grep redis
     ```
@@ -67,13 +67,13 @@ docker pull justinzhf/baffs:latest
     redis        7.4.1-baffs   d43e8b090126   4 months ago   28.8MB
     redis        7.4.1         2724e40d4303   4 months ago   117MB
     ```
-9. Finally, let's check whether the debloated image can still run the redis server:
+10. Finally, let's check whether the debloated image can still run the redis server:
     ```
     docker run -it --rm redis:7.4.1-baffs
     ```
     If the redis server can be started, then the debloating is successful!
 
-## Script BLAFS 
+## Automating BLAFS 
 
 
 BLAFS debloats a container in three steps:  
@@ -82,8 +82,11 @@ BLAFS debloats a container in three steps:
 2. **Profiling** – Runs profiling workloads to track file usage.  
 3. **Debloating** – Retains only the files used during profiling, removing everything else.  
 
-This script provides an example of using BLAFS to debloat a Redis container.  
-🔗 [Example Script](https://github.com/negativa-ai/BLAFS/blob/main/tests/test.sh)
+This script provides an example of using BLAFS to debloat a Redis container: 🔗 [Example Script](https://github.com/negativa-ai/BLAFS/blob/main/tests/test.sh)
+* It first converts the container filesystem into BLAFS and uses some integration tests as the profiling workloads to debloat the redis container.
+* Next, it debloats the container according to the profiling workloads.
+* Finally, it runs the debloated container with the profiling workloads, to verify that the debloated one still function correctly.
+
 
 
 

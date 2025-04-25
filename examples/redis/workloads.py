@@ -1,10 +1,7 @@
 import os
-import pathlib
 import redis
 import time
 import unittest
-
-import yaml
 
 IMAGE = "set_by_debloat_py"  # set by debloat.py
 

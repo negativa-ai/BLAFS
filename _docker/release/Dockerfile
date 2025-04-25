@@ -28,7 +28,7 @@ RUN apt-get install libfuse3-dev -y
 
 
 # Clone the BAFFS repository
-RUN git clone https://github.com/jzh18/BAFFS.git && cd BAFFS && make install
+RUN git clone https://github.com/negativa-ai/BLAFS.git && cd BLAFS && make install
 
 ENTRYPOINT ["/sbin/init"]
 

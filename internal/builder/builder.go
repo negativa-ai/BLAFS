@@ -35,9 +35,9 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/jzh18/baffs/internal/image"
-	"github.com/jzh18/baffs/internal/mount"
-	"github.com/jzh18/baffs/internal/util"
+	"github.com/negativa-ai/BLAFS/internal/image"
+	"github.com/negativa-ai/BLAFS/internal/mount"
+	"github.com/negativa-ai/BLAFS/internal/util"
 	log "github.com/sirupsen/logrus"
 )
 

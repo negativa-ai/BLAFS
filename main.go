@@ -31,10 +31,10 @@ import (
 
 	"github.com/alexflint/go-arg"
 	"github.com/docker/docker/client"
-	"github.com/jzh18/baffs/internal/builder"
-	"github.com/jzh18/baffs/internal/image"
-	"github.com/jzh18/baffs/internal/mount"
-	"github.com/jzh18/baffs/internal/util"
+	"github.com/negativa-ai/BLAFS/internal/builder"
+	"github.com/negativa-ai/BLAFS/internal/image"
+	"github.com/negativa-ai/BLAFS/internal/mount"
+	"github.com/negativa-ai/BLAFS/internal/util"
 	log "github.com/sirupsen/logrus"
 )
 

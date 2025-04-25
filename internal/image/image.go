@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jzh18/baffs/internal/util"
+	"github.com/negativa-ai/BLAFS/internal/util"
 	log "github.com/sirupsen/logrus"
 )
 

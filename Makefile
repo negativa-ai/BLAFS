@@ -4,7 +4,8 @@ debloated_fs:
 
 baffs:
 	mkdir -p build
-	cd build && go build -buildvcs=false github.com/jzh18/baffs
+	cd build && go build -buildvcs=false github.com/negativa-ai/BLAFS && mv BLAFS baffs
+
 
 install: debloated_fs baffs
 	cp build/debloated_fs /usr/bin/debloated_fs

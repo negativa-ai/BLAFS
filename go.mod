@@ -1,4 +1,4 @@
-module github.com/jzh18/baffs
+module github.com/negativa-ai/BLAFS
 
 go 1.23.6
 

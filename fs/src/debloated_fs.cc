@@ -65,7 +65,13 @@ std::string redirect(const char *original_path)
   std::string real_path_string = concat_path(BAFFS_FUSE_OPTS.real_dir, original_path);
   const char *real_path = real_path_string.c_str();
 
-  if (path_exists(real_path))
+  if (strcmp(original_path, "/") == 0)
+  {
+    return lower_path_string;
+  }
+
+  struct stat stbuf;
+  if (lstat(real_path, &stbuf) == 0 && stbuf.st_size > 0)
   {
     // file already moved to real dir, return real path
     spdlog::debug("real path exists, return real path: {0}", real_path);
@@ -238,7 +244,7 @@ int baffs_readdir(const char *_path, void *buf, fuse_fill_dir_t filler,
   (void)offset;
   (void)fi;
   (void)flags;
-  std::string redirected_path_string = redirect(_path);
+  std::string redirected_path_string = concat_path(BAFFS_FUSE_OPTS.lower_dir, _path);
   const char *redirected_path = redirected_path_string.c_str();
 
   dp = opendir(redirected_path);

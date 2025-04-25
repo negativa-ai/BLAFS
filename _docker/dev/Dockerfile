@@ -41,7 +41,7 @@ RUN ln -s python3.10 /usr/bin/python3
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 RUN pip install redis
 RUN pip install pyyaml
-
+RUN pip install pymemcache
 WORKDIR /home/ubuntu/repos/BAFFS
 
 ENTRYPOINT ["/sbin/init"]

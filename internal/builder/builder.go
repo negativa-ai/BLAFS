@@ -278,6 +278,7 @@ func ExportImg(imgName string, workDir string, overlayPath string, dockerRootDir
 	}
 	imgsTarFs := image.ParseImgTarFs(untarPath)
 	for _, l := range imgsTarFs.GetLayers() {
+		log.Debug("layer tar path: ", l.GetLayerTarPath())
 		l.RmLayerTar()
 	}
 

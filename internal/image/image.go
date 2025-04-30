@@ -358,7 +358,8 @@ type ImgTarLayer struct {
 
 func (l *ImgTarLayer) RmLayerTar() {
 	if err := os.Remove(l.layerTarPath); err != nil {
-		panic(err)
+		// some images have multiple same layers, so we might remove the same layer tar file multiple times and get an error
+		log.Error("Remove layer tar file failed: ", l.layerTarPath)
 	}
 }
 

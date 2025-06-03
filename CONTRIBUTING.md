@@ -21,9 +21,11 @@ See our `README.md` file.
 
 For BLAFS to grow and be more useful, issues with feature requests are very welcome. This includes documentation enhancements and design proposals too. When you submit your [pull request](https://help.github.com/articles/using-pull-requests) make sure to reference the issue.
 
-### Coding Standards
+### Coding Styles
+C++: https://google.github.io/styleguide/cppguide.html
 
-The coding standards are based on the [Golang community standards](https://github.com/golang/go/wiki/CodeReviewComments) for the part of BLAFS implemented in the language. For C++, please refer to [this guide]((https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines))
+Golang: https://google.github.io/styleguide/go/
+
 ### Dependencies
 
 BLAFS aims to have as few dependencies as possible. After all, we are in the business of cutting bloat. 

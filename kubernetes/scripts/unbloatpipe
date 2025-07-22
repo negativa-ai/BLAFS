@@ -1,0 +1,29 @@
+#!/bin/bash
+
+pipe=/tmp/testpipe
+
+trap "rm -f $pipe" EXIT
+
+if [[ ! -p $pipe ]]; then
+    mkfifo $pipe
+fi
+
+while true
+do
+    if read line <$pipe; then
+        echo "working on $line"
+	IMAGE=$(docker image list $line --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -v REPOSITORY | cut -f1 -d" ")
+	if [ -z $IMAGE ] 
+	then 
+          echo "pull and shadow..."
+          docker pull $line
+          docker tag $line "$line-nobaffs"
+	  baffs shadow --images=$line
+	else
+	  echo "debloat terminated shadowed $line"
+	  baffs debloat --images=$line
+          docker tag "$line-baffs" $line
+        fi
+        
+    fi
+done

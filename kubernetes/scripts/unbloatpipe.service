@@ -1,0 +1,15 @@
+[Unit]
+Description=pipe to unbloat images
+
+[Service]
+Type=simple
+WorkingDirectory=/home/docker
+ExecStart=/usr/local/bin/unbloatpipe
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

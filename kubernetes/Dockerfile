@@ -44,3 +44,13 @@ ENV TZ=Europe/Berlin
 RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 RUN echo "$TZ" > /etc/timezone
 
+#
+# configure systemd
+#
+
+COPY scripts/unbloatpipe.service /etc/systemd/system/unbloatpipe.service
+COPY scripts/unbloatpipe  /usr/local/bin/unbloatpipe
+
+RUN systemctl enable unbloatpipe
+
+

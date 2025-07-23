@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: writepipe
+spec:
+  ttlSecondsAfterFinished: 10
+  template:
+    metadata:
+      name: writepipe
+    spec:
+      containers:
+      - name: writepipe
+        image: busybox
+        args:
+        - /bin/sh
+        - -c
+        - echo CONTAINER > /tmp/run/unbloatpipe
+        volumeMounts:
+        - name: run
+          mountPath: /tmp/run
+      restartPolicy: Never
+      volumes:
+      - name: run 
+        hostPath:
+          path: /var/run
+          type: Directory 

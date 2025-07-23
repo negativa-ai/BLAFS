@@ -17,13 +17,17 @@ from the very same image used by Minikube for compatibility reasons
 
 The Docker version inside is used, not need to install another version.
 
-## Howto use
+## How to use
 
 Build the image with `docker build .  -t minikube-baffs` and run Minikube
 with `minikube start --driver=docker --base-image=minikube-baffs`. 
 
 In the Minikube container trigger download of the image and the initial
-shadowin  by using `writepipe redis:7.4.1`
+shadowing  by using 
+
+```bash
+  sed s/CONTAINER/redis:7.4.1/ writepipe.yaml  | kubectl create -f -
+```
 
 You now can create a deplopment using this image by
 
@@ -33,8 +37,6 @@ kubectl create deployment redis-shadow --image=redis:7.4.1
 
 Test your application as much as possible.
 
-Now stop the deployment by `kubect delete deployment redis-shadow` 
-and retrigger the debloat by using `writepipe redis:7.4.1`
-in Minikube again.
+Now stop the deployment by `kubectl delete deployment redis-shadow`.
 
 Restart the deployment, it is using the debloated container image now!

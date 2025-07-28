@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# set -x
+
 pipe=/var/run/unbloatpipe
 
 trap "rm -f $pipe" EXIT
@@ -8,40 +10,44 @@ if [[ ! -p $pipe ]]; then
     mkfifo $pipe
 fi
 
-while true
-do
-    if read line <$pipe; then
-       
+debloat_cycle(){
+        local line=$1
+
         if [ ! -z  `docker images $line-nobaffs --format="table {{.Repository}}:{{.Tag}}" | grep -v REPOSITORY` ] 
         then
-	  echo "## image $line is already processed"
+          echo "## image $line is already processed"
           continue
-	fi
+        fi
 
-	echo "## pull and shadow $line"    
-	docker pull $line
+        echo "## pull and shadow $line"    
+        docker pull $line
         docker tag $line "$line-nobaffs"
         baffs shadow --images=$line
-	systemctl restart kubelet
 
 
         echo "## wait until container is in use"
-	while true; 
-	do
-		IMAGE_ID=$(docker image list $line --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -v REPOSITORY | cut -f2 -d" ")
-	    	(docker ps | grep $IMAGE_ID)  && break
-		sleep 5
-	done
+        while true; 
+        do
+                IMAGE_ID=$(docker image list $line --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -v REPOSITORY | cut -f2 -d" ")
+                (docker ps | grep $IMAGE_ID)  && break
+                sleep 5
+        done
 
-	echo "## wait until container terminates"
-	CONTAINER_ID=$(docker ps | grep $IMAGE_ID | cut -f1 -d" ")
+        echo "## wait until container terminates"
+        CONTAINER_ID=$(docker ps | grep $IMAGE_ID | cut -f1 -d" ")
         docker container wait $CONTAINER_ID
-	
-	echo "## debloat terminated shadowed $line"
-	baffs debloat --images=$line
-	systemctl restart kubelet
+        
+        echo "## debloat terminated shadowed $line"
+        baffs debloat --images=$line
         docker tag "$line-baffs" $line
        
-        echo "## finished debloating $line"	
-    fi
+        echo "## finished debloating $line"     
+
+}
+
+while true
+do
+    read line <$pipe
+    debloat_cycle $line &
 done
+

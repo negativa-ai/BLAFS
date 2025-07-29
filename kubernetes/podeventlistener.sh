@@ -51,29 +51,48 @@ debloat_cycle(){
       for image in $(kubectl get pod $line  -o jsonpath="{ .spec['initContainers', 'containers'][*].image}
             ")
       do 
-	 echo -n "## "
+	 echo  "## processing image $image in pod/$line with owner $owner"
          ( echo $image | grep baffs ) && echo ignored && return 
          cat writepipe.yaml | sed s/CONTAINER/$image/ | sed s/NAME/writepipe-$RANDOM/| kubectl create -f -
       done
 
       sleep 20
-      if  kubectl delete pod $line
-      then
-          sleep 20
-	  echo patching $owner
-          kubectl get $owner -o yaml |grep -v -E 'image:.*-baffs$' | sed 's/image:.*$/&-baffs/' | kubectl apply -f -
-      fi
+      echo patching $owner
+      kubectl get $owner -o yaml |grep -v -E 'image:.*-baffs$' | sed 's/image:.*$/&-baffs/' | kubectl apply -f -
+      echo deleting pod $line
+      while ! kubectl delete pod $line 
+      do
+	      if  kubectl get pods
+	      then 
+		      break
+	      fi
+	      echo Retry in 5 seconds
+	      sleep 5
+      done
     fi
   fi
 
 }
 
-kubectl get event -w --field-selector reason=Started,involvedObject.kind=Pod \
-       	-o go-template='{{printf "%s\n" .involvedObject.name}}' |
-(
 while true
 do
-  read line 
-  debloat_cycle $line # &
+    kubectl get event -w --field-selector reason=Started,involvedObject.kind=Pod \
+       	-o go-template='{{printf "%s\n" .involvedObject.name}}' | \
+    while read line
+    do
+      debloat_cycle $line # &
+      kubectl get pods -o go-template --template='{{"\nImages\n"}}
+    {{- range .items -}}
+      {{- printf "%s\n" .metadata.name -}}
+      {{- range .spec.initContainers -}}
+       {{"*  "}} {{ .image }}
+    {{- end -}}
+    {{- range .spec.containers -}}
+       {{"-  "}} {{ .image }}
+    {{- end -}}{{"\n"}}
+{{- end -}}' | grep --color=always -E '^.*-baffs|$'
+
+    done
+    sleep 10
 done
-)
+

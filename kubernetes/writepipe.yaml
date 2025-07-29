@@ -1,7 +1,8 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: writepipe
+  name: NAME
+  namespace: kube-system
 spec:
   ttlSecondsAfterFinished: 10
   template:
@@ -10,7 +11,7 @@ spec:
     spec:
       containers:
       - name: writepipe
-        image: busybox
+        image: alpine
         args:
         - /bin/sh
         - -c

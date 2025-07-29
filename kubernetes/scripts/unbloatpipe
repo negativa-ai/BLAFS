@@ -4,7 +4,20 @@
 
 pipe=/var/run/unbloatpipe
 
-trap "rm -f $pipe" EXIT
+cleanup() {
+    # kill all processes whose parent is this process
+    rm -f $pipe
+    pkill -P $$
+}
+
+for sig in INT QUIT HUP TERM; do
+  trap "
+    cleanup
+    trap - $sig EXIT
+    kill -s $sig "'"$$"' "$sig"
+done
+trap cleanup EXIT
+
 
 if [[ ! -p $pipe ]]; then
     mkfifo $pipe
@@ -48,6 +61,6 @@ debloat_cycle(){
 while true
 do
     read line <$pipe
-    debloat_cycle $line &
+    debloat_cycle $line # &
 done
 

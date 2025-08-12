@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# set -x
+
+pipe=/var/run/unbloatpipe
+
+cleanup() {
+    # kill all processes whose parent is this process
+    rm -f $pipe
+    pkill -P $$
+}
+
+for sig in INT QUIT HUP TERM; do
+  trap "
+    cleanup
+    trap - $sig EXIT
+    kill -s $sig "'"$$"' "$sig"
+done
+trap cleanup EXIT
+
+
+if [[ ! -p $pipe ]]; then
+    mkfifo $pipe
+fi
+
+debloat_cycle(){
+        local line=$1
+
+        if [ ! -z  `docker images $line-nobaffs --format="table {{.Repository}}:{{.Tag}}" | grep -v REPOSITORY` ] 
+        then
+          echo "## image $line is already processed"
+          continue
+        fi
+
+        echo "## pull and shadow $line"    
+        docker pull $line
+        docker tag $line "$line-nobaffs"
+        baffs shadow --images=$line
+
+
+        echo "## wait until container is in use"
+        while true; 
+        do
+                IMAGE_ID=$(docker image list $line --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -v REPOSITORY | cut -f2 -d" ")
+                (docker ps | grep $IMAGE_ID)  && break
+                sleep 5
+        done
+
+        echo "## wait until container terminates"
+        CONTAINER_ID=$(docker ps | grep $IMAGE_ID | cut -f1 -d" ")
+        docker container wait $CONTAINER_ID
+        
+        echo "## debloat terminated shadowed $line"
+        baffs debloat --images=$line
+        docker tag "$line-baffs" $line
+       
+        echo "## finished debloating $line"     
+
+}
+
+while true
+do
+    read line <$pipe
+    debloat_cycle $line # &
+done
+
